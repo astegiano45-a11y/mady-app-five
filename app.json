@@ -1,0 +1,47 @@
+{
+  "expo": {
+    "name": "MadyApp",
+    "slug": "mady-app",
+    "version": "2.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FFFFFF"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.madyapp.app",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Mady App necesita tu ubicación para mostrarte mascotas perdidas cerca de ti.",
+        "NSCameraUsageDescription": "Mady App necesita la cámara para tomar fotos de tu mascota.",
+        "NSPhotoLibraryUsageDescription": "Mady App necesita acceso a tu galería para subir fotos de tu mascota."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FFFFFF"
+      },
+      "package": "com.madyapp.app",
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-location",
+      "expo-image-picker"
+    ]
+  }
+}
