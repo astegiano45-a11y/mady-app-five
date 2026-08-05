@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1284" height="2778" viewBox="0 0 1284 2778">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0.4" y2="1">
+      <stop offset="0%"   stop-color="#FAF7F2"/>
+      <stop offset="100%" stop-color="#EDE8DC"/>
+    </linearGradient>
+    <filter id="sh">
+      <feDropShadow dx="0" dy="10" stdDeviation="18" flood-color="#000" flood-opacity="0.18"/>
+    </filter>
+  </defs>
+
+  <!-- Fondo -->
+  <rect width="1284" height="2778" fill="url(#bg)"/>
+
+  <!-- Esquinas decorativas -->
+  <!-- TL -->
+  <line x1="0" y1="0" x2="128.4" y2="0"   stroke="#C9A84C" stroke-width="4" opacity="0.3"/>
+  <line x1="0" y1="0" x2="0"   y2="125.00999999999999" stroke="#C9A84C" stroke-width="4" opacity="0.3"/>
+  <!-- TR -->
+  <line x1="1284" y1="0" x2="1155.6" y2="0"   stroke="#C9A84C" stroke-width="4" opacity="0.3"/>
+  <line x1="1284" y1="0" x2="1284" y2="125.00999999999999" stroke="#C9A84C" stroke-width="4" opacity="0.3"/>
+  <!-- BL -->
+  <line x1="0" y1="2778" x2="128.4" y2="2778"   stroke="#C9A84C" stroke-width="4" opacity="0.3"/>
+  <line x1="0" y1="2778" x2="0" y2="2652.99" stroke="#C9A84C" stroke-width="4" opacity="0.3"/>
+  <!-- BR -->
+  <line x1="1284" y1="2778" x2="1155.6" y2="2778"   stroke="#C9A84C" stroke-width="4" opacity="0.3"/>
+  <line x1="1284" y1="2778" x2="1284" y2="2652.99" stroke="#C9A84C" stroke-width="4" opacity="0.3"/>
+
+  <!-- Ícono -->
+  <g transform="translate(642, 1222.32)">
+    <circle cx="0" cy="12" r="213.44" fill="rgba(0,0,0,0.10)"/>
+    <circle cx="0" cy="0"  r="205.44"     fill="#C9A84C" filter="url(#sh)"/>
+    <circle cx="0" cy="0"  r="156.1344"    fill="#F5F0E8"/>
+    <text x="0" y="51.77088"
+          font-family="Georgia, serif" font-size="143.808" font-weight="700"
+          font-style="italic" fill="#C9A84C" text-anchor="middle"
+          dominant-baseline="middle">M</text>
+    <circle cx="-24.6528" cy="234.20159999999998" r="10.272"  fill="#E2C97E" opacity="0.7"/>
+    <circle cx="0"          cy="234.20159999999998" r="13.3536" fill="#C9A84C"/>
+    <circle cx="24.6528"  cy="234.20159999999998" r="10.272"  fill="#E2C97E" opacity="0.7"/>
+  </g>
+
+  <!-- Título MADY -->
+  <text x="642" y="1777.92"
+        font-family="Georgia, serif" font-size="205.44" font-weight="800"
+        fill="#1A1A1A" text-anchor="middle" letter-spacing="20.544">MADY</text>
+
+  <!-- Divisor dorado -->
+  <line x1="282.47999999999996" y1="2034.72" x2="1001.52" y2="2034.72"
+        stroke="#C9A84C" stroke-width="2" opacity="0.8"/>
+  <polygon points="642,2022.72 652,2034.72 642,2046.72 632,2034.72"
+           fill="#C9A84C"/>
+
+  <!-- Tagline -->
+  <text x="642" y="2187.51"
+        font-family="Georgia, serif" font-size="66.768" font-style="italic"
+        fill="#A67C35" text-anchor="middle" letter-spacing="5.136">Elegancia que te define</text>
+
+  <!-- Subtítulo -->
+  <text x="642" y="2293.074"
+        font-family="Arial, sans-serif" font-size="43.656000000000006"
+        fill="#1A1A1A" text-anchor="middle" opacity="0.45" letter-spacing="7.704">TU ESTILO · TU ESENCIA</text>
+
+  <!-- Footer -->
+  <text x="642" y="2666.88"
+        font-family="Arial, sans-serif" font-size="38.519999999999996"
+        fill="#A67C35" text-anchor="middle" opacity="0.55" letter-spacing="6.42">madyapp.com</text>
+</svg>

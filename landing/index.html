@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<meta name="description" content="Mady — La comunidad que protege a tus mascotas en Río Grande, Tierra del Fuego. SOS instantáneo, mapa en tiempo real y comunidad activa."/>
+<title>Mady · Tu compañero siempre contigo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --teal:#0ABFBC;--teal-d:#089A97;--teal-dd:#067472;
+  --teal-l:#E0F7F7;--teal-xl:#F0FAFA;
+  --coral:#FF6B47;--coral-d:#E85530;--coral-l:#FFF0EC;
+  --dark:#0D1117;--dark-2:#161B22;--mid:#4B5563;
+  --light:#F8FAFC;--border:#E5E7EB;--white:#FFFFFF;
+}
+html{scroll-behavior:smooth}
+body{font-family:'Inter',sans-serif;color:var(--dark);background:var(--white);overflow-x:hidden;
+  cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 100 100'%3E%3Cellipse cx='50' cy='68' rx='22' ry='16' fill='%230ABFBC'/%3E%3Cellipse cx='18' cy='45' rx='10' ry='12' fill='%230ABFBC'/%3E%3Cellipse cx='36' cy='28' rx='10' ry='12' fill='%230ABFBC'/%3E%3Cellipse cx='64' cy='28' rx='10' ry='12' fill='%230ABFBC'/%3E%3Cellipse cx='82' cy='45' rx='10' ry='12' fill='%230ABFBC'/%3E%3C/svg%3E") 16 16,auto}
+img{display:block;max-width:100%}
+a{text-decoration:none;color:inherit}
+button{font-family:'Inter',sans-serif;cursor:pointer;border:none;background:none}
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-track{background:var(--dark)}
+::-webkit-scrollbar-thumb{background:var(--teal);border-radius:3px}
+
+/* NAV */
+#nav{position:fixed;top:0;left:0;right:0;z-index:999;display:flex;align-items:center;justify-content:space-between;padding:0 48px;height:72px;background:rgba(255,255,255,.93);backdrop-filter:blur(16px);border-bottom:1px solid rgba(10,191,188,.1);transition:box-shadow .3s}
+#nav.scrolled{box-shadow:0 4px 30px rgba(0,0,0,.08)}
+.nav-brand{display:flex;align-items:center;gap:10px}
+.nav-brand img{height:44px}
+.nav-brand-name{font-family:'Playfair Display',serif;font-size:1.6rem;font-weight:900;color:#C8924A}
+.nav-links{display:flex;gap:36px;list-style:none}
+.nav-links a{font-size:.88rem;font-weight:500;color:var(--mid);transition:color .2s;position:relative;padding-bottom:2px}
+.nav-links a::after{content:'';position:absolute;bottom:0;left:0;right:100%;height:2px;background:var(--teal);transition:right .25s}
+.nav-links a:hover{color:var(--teal)}
+.nav-links a:hover::after{right:0}
+.nav-cta{background:var(--coral);color:#fff;padding:10px 24px;border-radius:50px;font-size:.88rem;font-weight:700;transition:transform .2s,box-shadow .2s,background .2s;box-shadow:0 4px 16px rgba(255,107,71,.3)}
+.nav-cta:hover{background:var(--coral-d);transform:translateY(-2px);box-shadow:0 8px 28px rgba(255,107,71,.4)}
+.nav-ham{display:none;flex-direction:column;gap:5px;padding:4px}
+.nav-ham span{display:block;width:24px;height:2px;background:var(--dark);border-radius:2px;transition:.3s}
+
+/* HERO */
+.hero{position:relative;min-height:100vh;display:flex;align-items:center;overflow:hidden;padding-top:72px}
+.hero-bg{position:absolute;inset:0;background:url('https://images.unsplash.com/photo-1601758124510-52d02ddb7cbd?w=1800&auto=format&fit=crop&q=85') center/cover no-repeat}
+.hero-overlay{position:absolute;inset:0;background:linear-gradient(135deg,rgba(10,191,188,.78) 0%,rgba(13,17,23,.72) 55%,rgba(13,17,23,.88) 100%)}
+.hero-content{position:relative;z-index:2;max-width:680px;padding:80px 48px}
+.hero-badge{display:inline-flex;align-items:center;gap:10px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.22);backdrop-filter:blur(8px);border-radius:50px;padding:8px 20px;color:rgba(255,255,255,.92);font-size:.82rem;font-weight:600;letter-spacing:.5px;margin-bottom:32px;animation:fadeUp .8s .1s both}
+.badge-dot{width:8px;height:8px;border-radius:50%;background:#4ADE80;animation:pulseDot 2s infinite}
+@keyframes pulseDot{0%{box-shadow:0 0 0 0 rgba(74,222,128,.5)}70%{box-shadow:0 0 0 8px rgba(74,222,128,0)}100%{box-shadow:0 0 0 0 rgba(74,222,128,0)}}
+.hero h1{font-family:'Playfair Display',serif;font-size:clamp(2.6rem,5.5vw,4.8rem);font-weight:900;color:#fff;line-height:1.08;margin-bottom:24px;animation:fadeUp .9s .25s both}
+.hero h1 em{color:var(--coral);font-style:normal;position:relative}
+.hero h1 em::after{content:'';position:absolute;left:0;bottom:-4px;right:0;height:3px;background:var(--coral);border-radius:2px;opacity:.6}
+.hero-sub{font-size:1.1rem;color:rgba(255,255,255,.82);line-height:1.75;margin-bottom:44px;max-width:520px;animation:fadeUp .9s .4s both}
+.hero-btns{display:flex;gap:16px;flex-wrap:wrap;animation:fadeUp .9s .55s both}
+.btn-primary{display:inline-flex;align-items:center;gap:10px;background:var(--coral);color:#fff;padding:16px 36px;border-radius:50px;font-weight:700;font-size:1rem;box-shadow:0 8px 32px rgba(255,107,71,.4);transition:transform .25s,box-shadow .25s,background .2s}
+.btn-primary:hover{transform:translateY(-3px);box-shadow:0 16px 44px rgba(255,107,71,.5);background:var(--coral-d)}
+.btn-ghost{display:inline-flex;align-items:center;gap:10px;background:rgba(255,255,255,.1);color:#fff;padding:16px 36px;border-radius:50px;font-weight:600;font-size:1rem;border:2px solid rgba(255,255,255,.35);backdrop-filter:blur(8px);transition:background .25s,transform .25s}
+.btn-ghost:hover{background:rgba(255,255,255,.2);transform:translateY(-2px)}
+.hero-scroll{position:absolute;bottom:40px;left:48px;display:flex;flex-direction:column;align-items:flex-start;gap:10px;color:rgba(255,255,255,.55);font-size:.75rem;font-weight:500;letter-spacing:1.5px;text-transform:uppercase;z-index:2;animation:fadeIn 1s 1s both}
+.scroll-line{width:1px;height:56px;background:linear-gradient(to bottom,rgba(255,255,255,.55),transparent);animation:scrollAnim 2.2s ease-in-out infinite}
+@keyframes scrollAnim{0%{transform:scaleY(0);transform-origin:top}45%{transform:scaleY(1);transform-origin:top}55%{transform:scaleY(1);transform-origin:bottom}100%{transform:scaleY(0);transform-origin:bottom}}
+.hero-float{position:absolute;right:60px;top:50%;transform:translateY(-50%);z-index:2;display:flex;flex-direction:column;gap:16px;animation:fadeUp .9s .7s both}
+.float-card{background:rgba(255,255,255,.1);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.2);border-radius:16px;padding:16px 20px;color:#fff;display:flex;align-items:center;gap:12px;min-width:200px;transition:transform .25s}
+.float-card:hover{transform:translateX(-4px)}
+.float-icon{font-size:1.5rem}
+.float-lbl{font-size:.75rem;opacity:.72}
+.float-val{font-size:.98rem;font-weight:700}
+
+/* STATS */
+.stats{background:var(--teal);padding:48px;display:flex;justify-content:center;flex-wrap:wrap}
+.stat{text-align:center;color:#fff;padding:20px 48px;border-right:1px solid rgba(255,255,255,.2);flex:1;min-width:160px}
+.stat:last-child{border-right:none}
+.stat-icon{font-size:2rem;margin-bottom:8px}
+.stat-val{font-family:'Playfair Display',serif;font-size:1.8rem;font-weight:900;line-height:1;margin-bottom:6px}
+.stat-lbl{font-size:.82rem;font-weight:500;opacity:.85;line-height:1.4}
+
+/* SECTION BASE */
+.section{padding:100px 48px}
+.si{max-width:1140px;margin:0 auto}
+.tag{display:inline-block;background:var(--teal-l);color:var(--teal-dd);font-size:.72rem;font-weight:800;letter-spacing:2px;text-transform:uppercase;padding:6px 16px;border-radius:50px;margin-bottom:16px}
+.title{font-family:'Playfair Display',serif;font-size:clamp(2rem,4vw,3rem);font-weight:900;line-height:1.15;margin-bottom:16px}
+.sub{font-size:1.05rem;color:var(--mid);line-height:1.75;max-width:560px}
+
+/* PROBLEMA */
+.problema{background:var(--light)}
+.prob-grid{display:grid;grid-template-columns:1fr 1fr;gap:64px;align-items:center;margin-top:64px}
+.prob-visual{position:relative;border-radius:28px;overflow:hidden}
+.prob-visual img{width:100%;aspect-ratio:4/3;object-fit:cover}
+.prob-overlay{position:absolute;inset:0;background:linear-gradient(to top,rgba(10,191,188,.72) 0%,transparent 55%)}
+.prob-label{position:absolute;bottom:0;left:0;right:0;padding:28px}
+.prob-label h3{font-family:'Playfair Display',serif;font-size:1.3rem;font-weight:700;color:#fff;margin-bottom:6px}
+.prob-label p{font-size:.85rem;color:rgba(255,255,255,.85)}
+.prob-cards{display:flex;flex-direction:column;gap:20px}
+.prob-card{background:#fff;border-radius:16px;padding:24px 24px 24px 28px;border-left:4px solid var(--coral);box-shadow:0 2px 12px rgba(0,0,0,.06);transition:transform .25s,box-shadow .25s}
+.prob-card:hover{transform:translateX(4px);box-shadow:0 8px 28px rgba(0,0,0,.1)}
+.prob-card-t{font-weight:700;font-size:.95rem;margin-bottom:6px}
+.prob-card-p{font-size:.88rem;color:var(--mid);line-height:1.65}
+
+/* SERVICIOS */
+.serv-hd{text-align:center;margin-bottom:64px}
+.serv-hd .sub{margin:0 auto}
+.serv-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
+.serv-card{background:#fff;border-radius:20px;padding:36px 28px;border:1.5px solid var(--border);transition:transform .3s,box-shadow .3s,border-color .3s;position:relative;overflow:hidden}
+.serv-card::after{content:'';position:absolute;inset:0;background:linear-gradient(135deg,var(--teal-xl),transparent 60%);opacity:0;transition:opacity .3s;pointer-events:none}
+.serv-card:hover{transform:translateY(-8px);box-shadow:0 24px 56px rgba(10,191,188,.16);border-color:var(--teal)}
+.serv-card:hover::after{opacity:1}
+.serv-ic{width:64px;height:64px;border-radius:18px;display:flex;align-items:center;justify-content:center;font-size:1.9rem;margin-bottom:22px;position:relative;z-index:1}
+.ic-t{background:var(--teal-l)}.ic-c{background:var(--coral-l)}.ic-g{background:#F0FDF4}.ic-y{background:#FEFCE8}.ic-p{background:#F5F3FF}.ic-k{background:#FDF2F8}
+.serv-card h3{font-weight:700;font-size:1.05rem;margin-bottom:10px;position:relative;z-index:1}
+.serv-card p{font-size:.88rem;color:var(--mid);line-height:1.7;position:relative;z-index:1}
+.badge-soon{display:inline-block;margin-top:10px;font-size:.72rem;font-weight:700;letter-spacing:.5px;background:var(--teal-l);color:var(--teal-d);padding:3px 10px;border-radius:50px;position:relative;z-index:1}
+
+/* CÓMO FUNCIONA */
+.como{background:linear-gradient(135deg,var(--teal) 0%,var(--teal-dd) 100%);position:relative;overflow:hidden}
+.como::before{content:'';position:absolute;width:600px;height:600px;border-radius:50%;background:rgba(255,255,255,.04);top:-200px;right:-200px;pointer-events:none}
+.como .tag{background:rgba(255,255,255,.18);color:#fff}
+.como .title{color:#fff}
+.como .sub{color:rgba(255,255,255,.78)}
+.como-hd{text-align:center;margin-bottom:72px;position:relative;z-index:1}
+.como-hd .sub{margin:0 auto}
+.pasos{display:grid;grid-template-columns:repeat(4,1fr);gap:32px;position:relative;z-index:1}
+.pasos-line{position:absolute;top:52px;left:calc(12.5% + 16px);right:calc(12.5% + 16px);height:2px;background:rgba(255,255,255,.25);z-index:0}
+.paso{text-align:center;position:relative;z-index:1}
+.paso-n{width:96px;height:96px;border-radius:50%;background:rgba(255,255,255,.15);border:2.5px solid rgba(255,255,255,.4);display:flex;align-items:center;justify-content:center;font-size:2.2rem;margin:0 auto 24px;backdrop-filter:blur(8px);transition:background .3s,border-color .3s,transform .3s,box-shadow .3s}
+.paso:hover .paso-n{background:var(--coral);border-color:var(--coral);transform:scale(1.1) translateY(-4px);box-shadow:0 16px 40px rgba(255,107,71,.4)}
+.paso-s{display:block;font-size:.72rem;font-weight:800;letter-spacing:2px;color:rgba(255,255,255,.6);text-transform:uppercase;margin-bottom:6px}
+.paso h4{color:#fff;font-weight:700;font-size:1.05rem;margin-bottom:10px}
+.paso p{color:rgba(255,255,255,.72);font-size:.88rem;line-height:1.65}
+
+/* ORGANIZACIONES */
+.org{background:var(--dark)}
+.org-inner{display:grid;grid-template-columns:1fr 1fr;gap:80px;align-items:center}
+.org .tag{background:rgba(10,191,188,.18);color:var(--teal)}
+.org .title{color:#fff}
+.org .sub{color:rgba(255,255,255,.65)}
+.org-feats{display:flex;flex-direction:column;gap:24px;margin-top:40px}
+.org-feat{display:flex;align-items:flex-start;gap:18px}
+.org-ic{width:48px;height:48px;min-width:48px;border-radius:14px;background:rgba(10,191,188,.12);border:1px solid rgba(10,191,188,.2);display:flex;align-items:center;justify-content:center;font-size:1.3rem}
+.org-feat h4{color:#fff;font-weight:700;font-size:.95rem;margin-bottom:5px}
+.org-feat p{color:rgba(255,255,255,.55);font-size:.85rem;line-height:1.6}
+.org-btn{display:inline-flex;align-items:center;gap:10px;background:var(--teal);color:#fff;padding:15px 32px;border-radius:50px;font-weight:700;font-size:.95rem;margin-top:40px;transition:background .2s,transform .25s,box-shadow .25s;box-shadow:0 8px 28px rgba(10,191,188,.25)}
+.org-btn:hover{background:var(--teal-d);transform:translateY(-3px);box-shadow:0 16px 40px rgba(10,191,188,.35)}
+.org-visual{border-radius:28px;overflow:hidden;aspect-ratio:3/4;position:relative}
+.org-visual img{width:100%;height:100%;object-fit:cover}
+.org-v-overlay{position:absolute;inset:0;background:linear-gradient(to top,rgba(10,191,188,.85) 0%,transparent 55%)}
+.org-v-text{position:absolute;bottom:0;left:0;right:0;padding:36px 32px;color:#fff}
+.org-v-text h3{font-family:'Playfair Display',serif;font-size:1.6rem;font-weight:900;line-height:1.2;margin-bottom:10px}
+.org-v-text p{font-size:.88rem;opacity:.82;line-height:1.6}
+
+/* GALERÍA */
+.galeria{background:var(--light);overflow:hidden}
+.gal-hd{text-align:center;margin-bottom:52px}
+.foto-grid{display:grid;grid-template-columns:2fr 1fr 1fr;grid-template-rows:260px 260px;gap:16px;max-width:1140px;margin:0 auto;padding:0 48px}
+.foto-item{border-radius:20px;overflow:hidden;position:relative;cursor:pointer}
+.foto-item img{width:100%;height:100%;object-fit:cover;transition:transform .6s cubic-bezier(.25,.46,.45,.94)}
+.foto-item:hover img{transform:scale(1.07)}
+.foto-item:first-child{grid-row:1/3}
+.foto-ov{position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.55) 0%,transparent 50%);opacity:0;transition:opacity .35s}
+.foto-item:hover .foto-ov{opacity:1}
+.foto-lbl{position:absolute;bottom:16px;left:16px;background:rgba(255,255,255,.92);color:var(--dark);padding:6px 14px;border-radius:50px;font-size:.78rem;font-weight:700;transform:translateY(6px);opacity:0;transition:transform .35s,opacity .35s}
+.foto-item:hover .foto-lbl{transform:none;opacity:1}
+
+/* APP CTA */
+.app-cta{background:linear-gradient(135deg,var(--coral) 0%,#E84040 100%);padding:120px 48px;text-align:center;position:relative;overflow:hidden}
+.app-cta::before{content:'🐾';position:absolute;font-size:20rem;opacity:.05;top:-60px;right:-60px;transform:rotate(20deg);pointer-events:none}
+.app-cta h2{font-family:'Playfair Display',serif;font-size:clamp(2rem,4.5vw,3.5rem);font-weight:900;color:#fff;margin-bottom:20px;line-height:1.15;position:relative;z-index:1}
+.app-cta p{color:rgba(255,255,255,.88);font-size:1.1rem;max-width:500px;margin:0 auto 48px;line-height:1.75;position:relative;z-index:1}
+.app-big-btn{display:inline-flex;align-items:center;gap:14px;background:#fff;color:var(--coral);padding:20px 48px;border-radius:50px;font-weight:800;font-size:1.15rem;box-shadow:0 12px 48px rgba(0,0,0,.2);transition:transform .25s,box-shadow .25s;position:relative;z-index:1}
+.app-big-btn:hover{transform:translateY(-4px);box-shadow:0 24px 60px rgba(0,0,0,.28)}
+.app-stores{display:flex;justify-content:center;gap:12px;margin-top:28px;flex-wrap:wrap;position:relative;z-index:1}
+.store-badge{background:rgba(255,255,255,.15);border:1.5px solid rgba(255,255,255,.4);color:#fff;padding:12px 28px;border-radius:50px;font-size:.88rem;font-weight:700;backdrop-filter:blur(8px);transition:background .2s,transform .2s,box-shadow .2s;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
+.store-badge:hover{background:rgba(255,255,255,.3);transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.2)}
+
+/* CONTACTO */
+.contacto{background:#fff}
+.cont-inner{max-width:720px;margin:0 auto;text-align:center}
+.cont-form{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:48px;text-align:left}
+.f-full{grid-column:1/-1}
+.f-field{display:flex;flex-direction:column;gap:7px}
+.f-label{font-size:.82rem;font-weight:600;color:var(--mid)}
+.f-input,.f-select,.f-textarea{width:100%;padding:13px 16px;border:1.5px solid var(--border);border-radius:12px;font-family:'Inter',sans-serif;font-size:.92rem;color:var(--dark);background:var(--light);outline:none;transition:border-color .2s,box-shadow .2s,background .2s;-webkit-appearance:none}
+.f-input:focus,.f-select:focus,.f-textarea:focus{border-color:var(--teal);box-shadow:0 0 0 4px rgba(10,191,188,.1);background:#fff}
+.f-textarea{height:130px;resize:none}
+.f-submit{grid-column:1/-1;background:var(--teal);color:#fff;padding:16px;border-radius:12px;font-size:1rem;font-weight:700;transition:background .2s,transform .2s,box-shadow .2s;box-shadow:0 6px 24px rgba(10,191,188,.28)}
+.f-submit:hover{background:var(--teal-d);transform:translateY(-2px);box-shadow:0 12px 36px rgba(10,191,188,.35)}
+.f-success{display:none;background:var(--teal-l);border:1.5px solid var(--teal);border-radius:16px;padding:28px;margin-top:20px;color:var(--teal-dd);font-weight:600;font-size:1rem;text-align:center}
+
+/* FOOTER */
+footer{background:var(--dark-2);padding:48px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:24px;border-top:1px solid rgba(255,255,255,.06)}
+.foot-brand{display:flex;align-items:center;gap:10px}
+.foot-brand img{height:38px}
+.foot-brand-name{font-family:'Playfair Display',serif;font-size:1.3rem;font-weight:900;color:#C8924A}
+footer p{color:rgba(255,255,255,.3);font-size:.82rem}
+.foot-links{display:flex;gap:28px}
+.foot-links a{color:rgba(255,255,255,.4);font-size:.82rem;font-weight:500;transition:color .2s}
+.foot-links a:hover{color:var(--teal)}
+
+/* MOBILE MENU */
+.mob-menu{display:none;position:fixed;top:72px;left:0;right:0;background:rgba(255,255,255,.97);backdrop-filter:blur(16px);border-bottom:1px solid var(--border);padding:24px;flex-direction:column;gap:20px;z-index:998}
+.mob-menu.open{display:flex}
+.mob-menu a{font-size:1rem;font-weight:600;color:var(--dark)}
+.mob-menu .nav-cta{text-align:center}
+
+/* HISTORIA DE MADY */
+.historia{background:linear-gradient(160deg,#FDF6EE 0%,#FFF8F0 100%);position:relative;overflow:hidden}
+.historia::before{content:'🐾';position:absolute;font-size:18rem;opacity:.04;bottom:-60px;left:-60px;pointer-events:none}
+.hist-inner{display:grid;grid-template-columns:1fr 1fr;gap:72px;align-items:center}
+.hist-photos{display:grid;grid-template-columns:3fr 2fr;grid-template-rows:auto auto;gap:14px}
+.hist-photo-main{grid-row:1/3;border-radius:24px;overflow:hidden;box-shadow:0 20px 60px rgba(200,146,74,.18);aspect-ratio:3/4}
+.hist-photo-main img{width:100%;height:100%;object-fit:cover;object-position:center top}
+.hist-photo-sm{border-radius:18px;overflow:hidden;box-shadow:0 8px 28px rgba(0,0,0,.1)}
+.hist-photo-sm img{width:100%;aspect-ratio:3/4;object-fit:cover;object-position:center 20%}
+.hist-fb{background:#fff;border-radius:18px;padding:20px;border:1.5px solid #E8D8C4;box-shadow:0 4px 16px rgba(0,0,0,.06);font-size:.82rem;color:#4A3C2E;line-height:1.7;font-style:italic;grid-column:1/-1;position:relative}
+.hist-fb::before{content:'"';font-size:3rem;color:#C8924A;line-height:.5;display:block;margin-bottom:8px;font-family:'Playfair Display',serif}
+.hist-content{}
+.hist-tag{display:inline-flex;align-items:center;gap:8px;background:rgba(200,146,74,.12);color:#A5722E;font-size:.72rem;font-weight:800;letter-spacing:2px;text-transform:uppercase;padding:6px 16px;border-radius:50px;margin-bottom:20px;border:1px solid rgba(200,146,74,.2)}
+.hist-tag-dot{width:8px;height:8px;border-radius:50%;background:#C8924A;animation:pulseDot 2s infinite}
+.hist-title{font-family:'Playfair Display',serif;font-size:clamp(2rem,3.5vw,2.8rem);font-weight:900;line-height:1.15;margin-bottom:20px;color:#1C1208}
+.hist-title em{color:#C8924A;font-style:normal}
+.hist-sub{font-size:1rem;color:#6B5744;line-height:1.78;margin-bottom:28px}
+.hist-date{display:inline-flex;align-items:center;gap:8px;background:rgba(200,146,74,.08);border:1px solid rgba(200,146,74,.2);border-radius:50px;padding:8px 18px;font-size:.82rem;font-weight:600;color:#A5722E;margin-bottom:28px}
+.hist-quote{background:#fff;border-left:4px solid #C8924A;border-radius:0 16px 16px 0;padding:20px 24px;margin-bottom:28px;box-shadow:0 4px 20px rgba(200,146,74,.1)}
+.hist-quote p{font-size:.92rem;color:#4A3C2E;line-height:1.75;font-style:italic}
+.hist-quote cite{display:block;margin-top:10px;font-size:.78rem;font-weight:700;color:#C8924A;font-style:normal}
+.hist-tribute{display:flex;align-items:center;gap:14px;background:linear-gradient(135deg,#C8924A,#A5722E);border-radius:16px;padding:20px 24px;color:#fff}
+.hist-tribute-ic{font-size:2.4rem;flex-shrink:0}
+.hist-tribute h4{font-weight:800;font-size:1rem;margin-bottom:4px}
+.hist-tribute p{font-size:.85rem;opacity:.88;line-height:1.5}
+@media(max-width:1024px){.hist-inner{grid-template-columns:1fr;gap:48px}.hist-photos{max-width:600px;margin:0 auto}}
+@media(max-width:600px){.hist-photos{grid-template-columns:1fr}.hist-photo-main{grid-row:auto}.hist-photo-main img{min-height:260px}}
+
+/* REVEAL */
+.reveal{opacity:0;transform:translateY(28px);transition:opacity .75s ease,transform .75s ease}
+.reveal.visible{opacity:1;transform:none}
+.reveal-l{opacity:0;transform:translateX(-28px);transition:opacity .75s ease,transform .75s ease}
+.reveal-l.visible{opacity:1;transform:none}
+.reveal-r{opacity:0;transform:translateX(28px);transition:opacity .75s ease,transform .75s ease}
+.reveal-r.visible{opacity:1;transform:none}
+.reveal[data-split]{opacity:1;transform:none}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+
+/* RESPONSIVE */
+@media(max-width:1024px){
+  .prob-grid,.org-inner{grid-template-columns:1fr;gap:48px}
+  .serv-grid{grid-template-columns:repeat(2,1fr)}
+  .pasos{grid-template-columns:repeat(2,1fr)}
+  .pasos-line{display:none}
+  .hero-float{display:none}
+  .foto-grid{grid-template-columns:1fr 1fr;grid-template-rows:auto}
+  .foto-item:first-child{grid-row:auto}
+}
+@media(max-width:768px){
+  #nav{padding:0 24px}
+  .nav-links,.nav-cta{display:none}
+  .nav-ham{display:flex}
+  .section{padding:72px 24px}
+  .hero-content{padding:60px 24px}
+  .hero-btns{flex-direction:column;gap:12px}
+  .btn-primary,.btn-ghost{justify-content:center;padding:14px 28px}
+  .stats{padding:40px 24px}
+  .stat{padding:16px 20px;border-right:none;border-bottom:1px solid rgba(255,255,255,.2)}
+  .stat:last-child{border-bottom:none}
+  .serv-grid{grid-template-columns:1fr}
+  .pasos{grid-template-columns:1fr 1fr}
+  .cont-form{grid-template-columns:1fr}
+  footer{flex-direction:column;text-align:center;padding:36px 24px}
+  .foot-links{flex-wrap:wrap;justify-content:center}
+  .app-cta{padding:80px 24px}
+  .foto-grid{grid-template-columns:1fr;padding:0 24px}
+  .foto-item{height:220px}
+  .hero-scroll{left:24px}
+}
+@media(max-width:480px){
+  .hero h1{font-size:2.4rem}
+  .pasos{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav id="nav">
+  <a href="#" class="nav-brand">
+    <img src="mady_logo.png" alt="Mady" onerror="this.style.display='none'"/>
+    <span class="nav-brand-name">Mady</span>
+  </a>
+  <ul class="nav-links">
+    <li><a href="#que-es">¿Qué es?</a></li>
+    <li><a href="#servicios">Servicios</a></li>
+    <li><a href="#como-funciona">Cómo funciona</a></li>
+    <li><a href="#organizaciones">Organizaciones</a></li>
+    <li><a href="#historia">Historia</a></li>
+    <li><a href="#contacto">Contacto</a></li>
+  </ul>
+  <a href="https://mady-app-five.vercel.app" class="nav-cta" target="_blank" rel="noopener">Abrir App →</a>
+  <button class="nav-ham" id="ham" aria-label="Menú" aria-expanded="false">
+    <span></span><span></span><span></span>
+  </button>
+</nav>
+
+<div class="mob-menu" id="mobMenu">
+  <a href="#que-es" class="mob-lnk">¿Qué es Mady?</a>
+  <a href="#servicios" class="mob-lnk">Servicios</a>
+  <a href="#como-funciona" class="mob-lnk">Cómo funciona</a>
+  <a href="#organizaciones" class="mob-lnk">Organizaciones</a>
+  <a href="#historia" class="mob-lnk">Historia 🐾</a>
+  <a href="#contacto" class="mob-lnk">Contacto</a>
+  <a href="https://mady-app-five.vercel.app" class="nav-cta" target="_blank" rel="noopener" style="display:block;text-align:center">Abrir App →</a>
+</div>
+
+<!-- HERO -->
+<section class="hero" id="inicio">
+  <div class="hero-bg"></div>
+  <div class="hero-overlay"></div>
+  <div class="hero-content">
+    <div class="hero-badge">
+      <span class="badge-dot"></span>
+      Río Grande · Tierra del Fuego 🇦🇷
+    </div>
+    <h1>Cada mascota<br/>merece volver<br/>a <em>casa</em></h1>
+    <p class="hero-sub">Mady conecta a dueños, proteccionistas y vecinos para proteger a los animales de nuestra ciudad. SOS instantáneo, mapa en tiempo real y una comunidad que cuida.</p>
+    <div class="hero-btns">
+      <a href="https://mady-app-five.vercel.app" class="btn-primary" target="_blank" rel="noopener">🐾 Abrir la App</a>
+      <a href="#que-es" class="btn-ghost">Conocé más ↓</a>
+    </div>
+  </div>
+  <div class="hero-scroll">
+    <div class="scroll-line"></div>
+    Explorá
+  </div>
+  <div class="hero-float">
+    <div class="float-card"><span class="float-icon">🆘</span><div><div class="float-lbl">SOS Activo</div><div class="float-val">Alerta en segundos</div></div></div>
+    <div class="float-card"><span class="float-icon">📍</span><div><div class="float-lbl">Mapa en vivo</div><div class="float-val">Toda Río Grande</div></div></div>
+    <div class="float-card"><span class="float-icon">🤝</span><div><div class="float-lbl">Comunidad</div><div class="float-val">Vecinos conectados</div></div></div>
+  </div>
+</section>
+
+<!-- STATS -->
+<div class="stats">
+  <div class="stat"><div class="stat-icon">🆘</div><div class="stat-val">SOS 24/7</div><div class="stat-lbl">Alerta instantánea siempre activa</div></div>
+  <div class="stat"><div class="stat-icon">🗺️</div><div class="stat-val">Mapa real</div><div class="stat-lbl">Reportes geolocalizados en vivo</div></div>
+  <div class="stat"><div class="stat-icon">👥</div><div class="stat-val">Comunidad</div><div class="stat-lbl">Red activa de vecinos y proteccionistas</div></div>
+  <div class="stat"><div class="stat-icon">🔒</div><div class="stat-val">Sin estafas</div><div class="stat-lbl">Comunidad verificada y segura</div></div>
+</div>
+
+<!-- QUÉ ES -->
+<section class="section problema" id="que-es">
+  <div class="si">
+    <div class="tag">El problema que resolvemos</div>
+    <h2 class="title">Los grupos de Facebook<br/>no alcanzan</h2>
+    <p class="sub">Las alertas se pierden, no hay seguimiento de casos y las estafas son una realidad. Río Grande necesita una solución pensada para esto.</p>
+    <div class="prob-grid">
+      <div class="prob-visual reveal-l">
+        <img src="assets/mady-perrita-8.jpg" onerror="this.src='https://images.unsplash.com/photo-1601758174493-c5e8dfd9c4fb?w=800&auto=format&fit=crop&q=80'" alt="Mascota perdida en Río Grande" loading="lazy"/>
+        <div class="prob-overlay"></div>
+        <div class="prob-label">
+          <h3>Una problemática creciente</h3>
+          <p>El abandono y extravío animal crece en Tierra del Fuego. Mady es la respuesta local.</p>
+        </div>
+      </div>
+      <div class="prob-cards reveal-r">
+        <div class="prob-card"><div class="prob-card-t">🔕 Las alertas desaparecen</div><div class="prob-card-p">En un grupo de Facebook, una alerta de mascota perdida queda enterrada en horas. No hay seguimiento del caso.</div></div>
+        <div class="prob-card"><div class="prob-card-t">🗺️ Sin mapa, sin coordenadas</div><div class="prob-card-p">Nadie sabe exactamente dónde se vio al animal por última vez. Mady ubica cada reporte en tiempo real.</div></div>
+        <div class="prob-card"><div class="prob-card-t">🎭 Estafas y desconfianza</div><div class="prob-card-p">Personas inescrupulosas aprovechan la desesperación. Mady crea una comunidad verificada y transparente.</div></div>
+        <div class="prob-card"><div class="prob-card-t">📉 Sin continuidad</div><div class="prob-card-p">¿Se encontró o sigue perdido? Con Mady cada caso tiene estado actualizado visible para todos.</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SERVICIOS -->
+<section class="section" id="servicios" style="background:var(--white)">
+  <div class="si">
+    <div class="serv-hd reveal">
+      <div class="tag">Servicios</div>
+      <h2 class="title">Todo lo que necesitás,<br/>en un solo lugar</h2>
+      <p class="sub">Diseñado para la realidad de Río Grande y pensado para quienes aman a sus mascotas.</p>
+    </div>
+    <div class="serv-grid reveal">
+      <div class="serv-card"><div class="serv-ic ic-t">🆘</div><h3>Alerta SOS</h3><p>Botón de emergencia que notifica a toda la comunidad cercana en segundos. Porque cada minuto cuenta.</p></div>
+      <div class="serv-card"><div class="serv-ic ic-c">🗺️</div><h3>Mapa en tiempo real</h3><p>Todos los reportes geolocalizados en un mapa interactivo. Sabé exactamente dónde buscar y coordiná con vecinos.</p></div>
+      <div class="serv-card"><div class="serv-ic ic-g">🐾</div><h3>Tablón de extraviados</h3><p>Perdidos, encontrados y en adopción. Con filtros, búsqueda por zona y datos completos de cada animal.</p></div>
+      <div class="serv-card"><div class="serv-ic ic-y">👥</div><h3>Comunidad activa</h3><p>Feed social para compartir alertas, historias de reencuentro y consejos de cuidado animal.</p></div>
+      <div class="serv-card"><div class="serv-ic ic-p">💡</div><h3>Tips de cuidado</h3><p>Consejos verificados sobre salud, alimentación y bienestar para que puedas cuidar mejor a tu compañero.</p><span class="badge-soon">Próximamente</span></div>
+      <div class="serv-card"><div class="serv-ic ic-k">🏪</div><h3>Negocios recomendados</h3><p>Veterinarias, tiendas y servicios de confianza en Río Grande. La comunidad con los mejores proveedores locales.</p><span class="badge-soon">Próximamente</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- CÓMO FUNCIONA -->
+<section class="section como" id="como-funciona">
+  <div class="si">
+    <div class="como-hd reveal">
+      <div class="tag">¿Cómo funciona?</div>
+      <h2 class="title">Simple. Rápido. Efectivo.</h2>
+      <p class="sub">En menos de 2 minutos podés alertar a toda la comunidad sobre una mascota perdida o encontrada.</p>
+    </div>
+    <div class="pasos reveal" style="position:relative">
+      <div class="pasos-line"></div>
+      <div class="paso"><div class="paso-n">📲</div><span class="paso-s">Paso 01</span><h4>Creá tu cuenta</h4><p>Registrate gratis en segundos y sumá a tus mascotas con sus datos y foto.</p></div>
+      <div class="paso"><div class="paso-n">🆘</div><span class="paso-s">Paso 02</span><h4>Activá el SOS</h4><p>Si perdés o encontrás un animal, presioná SOS. La comunidad cercana recibe la alerta al instante.</p></div>
+      <div class="paso"><div class="paso-n">📍</div><span class="paso-s">Paso 03</span><h4>El mapa en acción</h4><p>Tu reporte aparece geolocalizando exactamente. Los vecinos pueden verlo y contactarte directo.</p></div>
+      <div class="paso"><div class="paso-n">🏠</div><span class="paso-s">Paso 04</span><h4>¡Reunificados!</h4><p>Marcás el caso como resuelto. La historia queda como testimonio de esperanza en la comunidad.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ORGANIZACIONES -->
+<section class="section org" id="organizaciones">
+  <div class="si org-inner">
+    <div class="reveal-l">
+      <div class="tag">Para organizaciones</div>
+      <h2 class="title">¿Trabajás por el<br/>bienestar animal?</h2>
+      <p class="sub">Mady potencia el trabajo de proteccionistas, refugios y organizaciones de Tierra del Fuego.</p>
+      <div class="org-feats">
+        <div class="org-feat"><div class="org-ic">📢</div><div><h4>Publicá casos de adopción</h4><p>Llegá a toda la comunidad con los animales que buscan hogar. Con foto, datos y estado actualizado.</p></div></div>
+        <div class="org-feat"><div class="org-ic">📊</div><div><h4>Gestión centralizada</h4><p>Administrá reportes, hacé seguimiento de casos y coordiná con voluntarios desde un solo lugar.</p></div></div>
+        <div class="org-feat"><div class="org-ic">🤝</div><div><h4>Contacto directo</h4><p>Los usuarios te escriben en tiempo real. Sin intermediarios, sin información perdida en el camino.</p></div></div>
+      </div>
+      <a href="#contacto" class="org-btn">Quiero sumar mi organización →</a>
+    </div>
+    <div class="org-visual reveal-r">
+      <img src="assets/mady-perrita-5.jpg" onerror="this.src='https://images.unsplash.com/photo-1548199973-03cce0bbc87b?w=700&auto=format&fit=crop&q=80'" alt="Mascota Río Grande" loading="lazy"/>
+      <div class="org-v-overlay"></div>
+      <div class="org-v-text">
+        <h3>"Cada animal<br/>merece una<br/>oportunidad"</h3>
+        <p>Juntos construimos una red más fuerte de protección animal en Río Grande.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- GALERÍA -->
+<section class="section galeria" id="galeria">
+  <div class="si">
+    <div class="gal-hd reveal">
+      <div class="tag">Nuestra comunidad</div>
+      <h2 class="title">Por ellos hacemos esto</h2>
+      <p class="sub" style="margin:0 auto">Cada foto es una historia. Cada historia, un motivo para seguir construyendo Mady.</p>
+    </div>
+  </div>
+  <div class="foto-grid reveal">
+    <div class="foto-item">
+      <img src="assets/mady-perrita-3.jpg" onerror="this.src='https://images.unsplash.com/photo-1601758174493-c5e8dfd9c4fb?w=800&auto=format&fit=crop&q=80'" alt="Perros en Río Grande" loading="lazy"/>
+      <div class="foto-ov"></div><div class="foto-lbl">🐕 Río Grande</div>
+    </div>
+    <div class="foto-item">
+      <img src="assets/mady-perrita-4.jpg" onerror="this.src='https://images.unsplash.com/photo-1548199973-03cce0bbc87b?w=600&auto=format&fit=crop&q=80'" alt="Mascota" loading="lazy"/>
+      <div class="foto-ov"></div><div class="foto-lbl">🐶 Necesitan ayuda</div>
+    </div>
+    <div class="foto-item">
+      <img src="assets/mady-perrita-5.jpg" onerror="this.src='https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=600&auto=format&fit=crop&q=80'" alt="Mascota" loading="lazy"/>
+      <div class="foto-ov"></div><div class="foto-lbl">🏠 En busca de hogar</div>
+    </div>
+    <div class="foto-item">
+      <img src="assets/mady-perrita-6.jpg" onerror="this.src='https://images.unsplash.com/photo-1450778869180-41d0601e046e?w=600&auto=format&fit=crop&q=80'" alt="Mascota" loading="lazy"/>
+      <div class="foto-ov"></div><div class="foto-lbl">❤️ Comunidad</div>
+    </div>
+    <div class="foto-item">
+      <img src="assets/mady-perrita-7.jpg" onerror="this.src='https://images.unsplash.com/photo-1516734212186-a967f81ad0d7?w=600&auto=format&fit=crop&q=80'" alt="Mascota" loading="lazy"/>
+      <div class="foto-ov"></div><div class="foto-lbl">🆘 Rescates</div>
+    </div>
+  </div>
+</section>
+
+<!-- HISTORIA DE MADY -->
+<section class="section historia" id="historia">
+  <div class="si">
+    <div class="hist-inner">
+      <div class="hist-photos reveal-l">
+        <div class="hist-photo-main">
+          <img src="assets/mady-perrita-2.jpg"
+               onerror="this.src='https://images.unsplash.com/photo-1518717758536-85ae29035b6d?w=700&auto=format&fit=crop&q=80'"
+               alt="Mady en el campo de Río Grande" loading="lazy"/>
+        </div>
+        <div class="hist-photo-sm">
+          <img src="assets/mady-perrita-1.jpg"
+               onerror="this.src='https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=400&auto=format&fit=crop&q=80'"
+               alt="Mady, la perrita que inspiró la app" loading="lazy"/>
+        </div>
+        <div class="hist-fb" style="grid-column:2">
+          "Sigue sin aparecer mi bebé, porfavor se llama MADY 🐾🐾🐾 se fue el 24 tipo 2 de la mañana... realmente estoy muy angustiada es mi bebé. Zona margen sur, calle Koyuska y Tolhuin."
+          <cite>— Juliana Cecilia, 26 de diciembre de 2025 · Facebook</cite>
+        </div>
+      </div>
+      <div class="hist-content reveal-r">
+        <div class="hist-tag">
+          <span class="hist-tag-dot"></span>
+          El origen
+        </div>
+        <h2 class="hist-title">La perrita que le<br/>dio nombre a <em>todo</em></h2>
+        <div class="hist-date">📅 24 de diciembre de 2025 · Río Grande, TDF</div>
+        <p class="hist-sub">En la madrugada del 24 de diciembre, los ruidos de la noche asustaron a Mady y salió corriendo. Su dueña, Juliana, la buscó por toda la ciudad, publicó en grupos de Facebook, pidió ayuda... y vivió en carne propia lo que millones de personas enfrentan cada día: la desesperación de perder a tu compañero y no tener las herramientas adecuadas para encontrarlo.</p>
+        <div class="hist-quote">
+          <p>"No puede ser que no esté en ningún lado ni nadie la haya visto, ya van a ser 2 días sin ella. Es mi bebé."</p>
+          <cite>— La realidad que nos inspiró a construir algo mejor</cite>
+        </div>
+        <div class="hist-tribute">
+          <span class="hist-tribute-ic">🐾</span>
+          <div>
+            <h4>Mady App nació por Mady</h4>
+            <p>Este proyecto lleva su nombre como homenaje y como promesa: que ningún dueño de Río Grande tenga que vivir esa desesperación sin una herramienta real de ayuda.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- APP CTA -->
+<section class="app-cta">
+  <h2>¿Listo para proteger<br/>a tu compañero?</h2>
+  <p>Mady es gratuita, sin publicidad invasiva, y pensada especialmente para la comunidad de Río Grande y Tierra del Fuego.</p>
+  <a href="https://mady-app-five.vercel.app" class="app-big-btn" target="_blank" rel="noopener">🐾 Abrir Mady ahora</a>
+  <div class="app-stores">
+    <a href="https://mady-app-five.vercel.app" class="store-badge" target="_blank" rel="noopener" style="cursor:pointer">🌐 Abrir versión Web →</a>
+    <a href="#contacto" class="store-badge" style="cursor:pointer">📱 Quiero la App móvil →</a>
+  </div>
+</section>
+
+<!-- CONTACTO -->
+<section class="section contacto" id="contacto">
+  <div class="cont-inner">
+    <div class="reveal">
+      <div class="tag">Contacto</div>
+      <h2 class="title">¿Querés sumarte<br/>a Mady?</h2>
+      <p class="sub" style="margin:0 auto">Si sos proteccionista, negocio local o querés colaborar, escribinos. Estamos construyendo esto juntos.</p>
+    </div>
+    <form class="cont-form reveal" id="cForm">
+      <div class="f-field"><label class="f-label" for="fn">Nombre completo</label><input class="f-input" type="text" id="fn" placeholder="Tu nombre" required/></div>
+      <div class="f-field"><label class="f-label" for="fe">Email</label><input class="f-input" type="email" id="fe" placeholder="tu@email.com" required/></div>
+      <div class="f-field f-full"><label class="f-label" for="ft">Soy…</label><select class="f-select" id="ft"><option value="">Seleccioná una opción</option><option>Dueño/a de mascota</option><option>Organización proteccionista</option><option>Veterinaria / Negocio</option><option>Voluntario/a</option><option>Otro</option></select></div>
+      <div class="f-field f-full"><label class="f-label" for="fm">¿Cómo querés colaborar?</label><textarea class="f-textarea" id="fm" placeholder="Contanos tu idea o qué necesitás…"></textarea></div>
+      <button type="submit" class="f-submit">Enviar mensaje 🐾</button>
+    </form>
+    <div class="f-success" id="fOk">✅ ¡Gracias! Te contactamos pronto.</div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="foot-brand">
+    <img src="mady_logo.png" alt="Mady" onerror="this.style.display='none'"/>
+    <span class="foot-brand-name">Mady</span>
+  </div>
+  <p>© 2026 Mady · Río Grande, Tierra del Fuego 🇦🇷</p>
+  <nav class="foot-links">
+    <a href="https://mady-app-five.vercel.app" target="_blank" rel="noopener">Abrir App</a>
+    <a href="#servicios">Servicios</a>
+    <a href="#organizaciones">Organizaciones</a>
+    <a href="#contacto">Contacto</a>
+  </nav>
+</footer>
+
+<script defer>
+(function(){
+  'use strict';
+  /* Nav scroll */
+  var nav=document.getElementById('nav');
+  window.addEventListener('scroll',function(){nav.classList.toggle('scrolled',window.scrollY>60)},{passive:true});
+
+  /* Hamburger */
+  var ham=document.getElementById('ham'),mob=document.getElementById('mobMenu');
+  ham.addEventListener('click',function(){var o=mob.classList.toggle('open');ham.setAttribute('aria-expanded',o)});
+  document.querySelectorAll('.mob-lnk').forEach(function(a){a.addEventListener('click',function(){mob.classList.remove('open');ham.setAttribute('aria-expanded','false')})});
+
+  /* Reveal */
+  var els=document.querySelectorAll('.reveal,.reveal-l,.reveal-r');
+  if('IntersectionObserver' in window){
+    var io=new IntersectionObserver(function(entries){entries.forEach(function(e){if(e.isIntersecting)e.target.classList.add('visible')})},{threshold:0.08,rootMargin:'0px 0px -40px 0px'});
+    els.forEach(function(el){io.observe(el)});
+  } else {
+    els.forEach(function(el){el.classList.add('visible')});
+  }
+  setTimeout(function(){els.forEach(function(el){el.classList.add('visible')})},6000);
+
+  /* Smooth scroll */
+  document.querySelectorAll('a[href^="#"]').forEach(function(a){
+    a.addEventListener('click',function(e){
+      var t=document.querySelector(this.getAttribute('href'));
+      if(t){e.preventDefault();t.scrollIntoView({behavior:'smooth',block:'start'})}
+    });
+  });
+
+  /* Form */
+  var form=document.getElementById('cForm'),ok=document.getElementById('fOk');
+  if(form){
+    form.addEventListener('submit',function(e){
+      e.preventDefault();
+      var btn=form.querySelector('.f-submit');
+      btn.textContent='Enviando…';btn.disabled=true;
+      setTimeout(function(){form.style.display='none';ok.style.display='block'},1200);
+    });
+  }
+})();
+</script>
+</body>
+</html>
