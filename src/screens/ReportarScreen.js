@@ -255,7 +255,7 @@ function StepDatos({ tipo, onBack, onSubmit, loading }) {
 }
 
 // ── Paso 3: confirmación ──────────────────────────────────────────────────────
-function StepConfirm({ tipo, name, zone, onReset }) {
+function StepConfirm({ tipo, name, zone, onReset, hasLocation }) {
   const scale = useRef(new Animated.Value(0)).current;
   const fade  = useRef(new Animated.Value(0)).current;
 
@@ -282,6 +282,24 @@ function StepConfirm({ tipo, name, zone, onReset }) {
           Tu reporte ya aparece en el mapa en tiempo real
         </Text>
       </View>
+
+      {/* Aviso de ubicación — geolocalización real vs. zona aproximada */}
+      {hasLocation ? (
+        <View style={[st.confirmCard, { borderColor: '#16A34A30', backgroundColor: '#F0FDF4' }]}>
+          <MapPin size={16} color="#16A34A" strokeWidth={2} />
+          <Text style={[st.confirmCardTxt, { color: '#16A34A' }]}>
+            Guardamos tu ubicación exacta para este reporte
+          </Text>
+        </View>
+      ) : (
+        <View style={[st.confirmCard, { borderColor: '#D9770630', backgroundColor: '#FFFBEB' }]}>
+          <MapPin size={16} color="#D97706" strokeWidth={2} />
+          <Text style={[st.confirmCardTxt, { color: '#D97706' }]}>
+            Sin ubicación exacta — se usará la zona aproximada en el mapa
+          </Text>
+        </View>
+      )}
+
       <TouchableOpacity style={[st.submitBtn, { backgroundColor: tipo.bg, marginTop: S[24] }]} onPress={onReset}>
         <Text style={st.submitBtnTxt}>Hacer otro reporte</Text>
       </TouchableOpacity>
@@ -294,25 +312,39 @@ export default function ReportarScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const { currentUser } = useAuth();
 
-  const [paso,    setPaso]    = useState(1);  // 1=tipo, 2=datos, 3=confirm
-  const [tipo,    setTipo]    = useState(null);
-  const [result,  setResult]  = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [paso,     setPaso]     = useState(1);  // 1=tipo, 2=datos, 3=confirm
+  const [tipo,     setTipo]     = useState(null);
+  const [result,   setResult]   = useState(null);
+  const [loading,  setLoading]  = useState(false);
+  const [hasLocation, setHasLocation] = useState(false); // ¿la alerta quedó geolocalizada?
 
   const handleTipo = (t) => { setTipo(t); setPaso(2); };
 
   const handleSubmit = async (datos) => {
     setLoading(true);
     try {
-      // 1. Crear alerta
-      const alerta = await crearAlerta(datos);
+      // Ubicación real: pedimos permiso UNA sola vez (expo-location — en web
+      // usa la Geolocation API del navegador por debajo, en nativo el GPS).
+      // Si el usuario la rechaza o falla, getCurrentLocation() devuelve null
+      // sin tirar excepción — el formulario sigue igual, solo sin lat/lng.
+      let coords = null;
+      try { coords = await getCurrentLocation(); } catch {}
+
+      // 1. Crear alerta — con lat/lng reales si los conseguimos; si no,
+      //    quedan null y el mapa cae al fallback de zona que ya existía.
+      const alerta = await crearAlerta({
+        ...datos,
+        lat: coords?.lat ?? null,
+        lng: coords?.lng ?? null,
+      });
+      setHasLocation(!!coords);
 
       // 2. Actualizar mi ubicación + notificar usuarios cercanos
+      //    (reusa la misma ubicación ya pedida arriba, no vuelve a preguntar)
       (async () => {
         try {
-          const myLoc = await getCurrentLocation();
-          if (myLoc) {
-            await updateMyLocation(myLoc.lat, myLoc.lng);
+          if (coords) {
+            await updateMyLocation(coords.lat, coords.lng);
             // Obtener usuarios cercanos
             const { data: profiles } = await supabase
               .from('profiles')
@@ -343,6 +375,7 @@ export default function ReportarScreen({ navigation }) {
     } catch (e) {
       // Aunque falle el backend, mostramos confirmación (UX de emergencia)
       setResult({ name: datos.name, zone: datos.zone });
+      setHasLocation(false);
       setPaso(3);
     } finally {
       setLoading(false);
@@ -391,6 +424,7 @@ export default function ReportarScreen({ navigation }) {
               tipo={tipo}
               name={result.name}
               zone={result.zone}
+              hasLocation={hasLocation}
               onReset={handleReset}
             />
           )}
