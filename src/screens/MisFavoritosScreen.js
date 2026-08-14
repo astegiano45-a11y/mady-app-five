@@ -7,9 +7,12 @@ import { C } from '../theme/colors';
 import { R, S } from '../theme/spacing';
 import { T } from '../theme/typography';
 import { supabase } from '../lib/supabase';
+import { useIsDesktop } from '../hooks/useIsDesktop';
 
 export default function MisFavoritosScreen({ navigation }) {
   const insets = useSafeAreaInsets();
+  const isDesktop = useIsDesktop();
+  const numColumns = isDesktop ? 4 : 2;
   const [favoritos, setFavoritos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState(null);
@@ -79,11 +82,12 @@ export default function MisFavoritosScreen({ navigation }) {
         </View>
       ) : (
         <FlatList
+          key={numColumns}
           data={favoritos}
           keyExtractor={i => i.id}
-          numColumns={2}
+          numColumns={numColumns}
           columnWrapperStyle={{ gap: 12 }}
-          contentContainerStyle={st.list}
+          contentContainerStyle={[st.list, isDesktop && st.listDesktop]}
           showsVerticalScrollIndicator={false}
           renderItem={({ item }) => (
             <View style={st.card}>
@@ -125,6 +129,8 @@ const st = StyleSheet.create({
   sub: { fontSize: T.sm, color: C.inkLight },
 
   list: { padding: S[16], gap: 12, paddingBottom: 100 },
+  // Desktop (>900px): grilla más ancha (4 columnas) centrada, aprovecha el espacio
+  listDesktop: { width: '100%', maxWidth: 1100, alignSelf: 'center' },
   card: { flex: 1, backgroundColor: C.white, borderRadius: R.xl, overflow: 'hidden', borderWidth: 1, borderColor: C.border },
   photo: { width: '100%', aspectRatio: 1 },
   photoPlaceholder: { backgroundColor: C.tealLight, alignItems: 'center', justifyContent: 'center' },

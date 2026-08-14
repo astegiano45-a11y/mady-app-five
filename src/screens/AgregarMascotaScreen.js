@@ -13,6 +13,7 @@ import { R, S } from '../theme/spacing';
 import { T } from '../theme/typography';
 import { crearMascota, subirFotoMascota } from '../services/mascotasService';
 import { supabase } from '../lib/supabase';
+import { useIsDesktop } from '../hooks/useIsDesktop';
 
 const SPECIES  = ['Perro', 'Gato', 'Conejo', 'Ave', 'Otro'];
 const SPECIES_EMOJI = { Perro:'🐕', Gato:'🐱', Conejo:'🐇', Ave:'🦜', Otro:'🐾' };
@@ -36,6 +37,7 @@ async function uploadFotoMascota(uri, base64) {
 
 export default function AgregarMascotaScreen({ navigation }) {
   const insets = useSafeAreaInsets();
+  const isDesktop = useIsDesktop();
   const [name,     setName]     = useState('');
   const [species,  setSpecies]  = useState('Perro');
   const [breed,    setBreed]    = useState('');
@@ -110,7 +112,11 @@ export default function AgregarMascotaScreen({ navigation }) {
       </View>
 
       <ScrollView
-        contentContainerStyle={[s.scroll, { paddingBottom: insets.bottom + 80 }]}
+        contentContainerStyle={[
+          s.scroll,
+          isDesktop && s.scrollDesktop,
+          { paddingBottom: insets.bottom + 80 },
+        ]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
@@ -207,6 +213,8 @@ const s = StyleSheet.create({
   headerTitle: { flex: 1, textAlign: 'center', fontSize: T.lg, fontWeight: '700', color: C.ink },
 
   scroll: { padding: S[20], backgroundColor: C.cloud },
+  // Desktop (>900px): columna centrada, no estira el form de punta a punta
+  scrollDesktop: { width: '100%', maxWidth: 560, alignSelf: 'center' },
 
   photoPicker: {
     width: 120, height: 120, borderRadius: 60,

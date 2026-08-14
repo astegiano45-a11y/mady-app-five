@@ -4,15 +4,18 @@
 
 import React from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { View, StyleSheet, Platform } from 'react-native';
+import { View, StyleSheet, Platform, useWindowDimensions } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider } from './src/context/AuthContext';
 import Navigation from './src/navigation';
+import { DESKTOP_BREAKPOINT } from './src/hooks/useIsDesktop';
 
-const MAX_W = 430;
+const MOBILE_FRAME_W = 430;
 
 export default function App() {
   const isWeb = Platform.OS === 'web';
+  const { width } = useWindowDimensions();
+  const isDesktop = width >= DESKTOP_BREAKPOINT;
 
   const inner = (
     <SafeAreaProvider>
@@ -25,7 +28,14 @@ export default function App() {
 
   if (!isWeb) return inner;
 
-  // Web: outer centering shell + phone-width constraint
+  // Desktop/pantallas anchas: sin marco de teléfono — la app usa todo el ancho
+  // y cada pantalla decide su propio layout responsive (ver useIsDesktop).
+  if (isDesktop) {
+    return <View style={styles.webFull}>{inner}</View>;
+  }
+
+  // Ventanas angostas en web (o mobile real): se mantiene el "marco de teléfono"
+  // flotante, que es simplemente una simulación de app para navegadores angostos.
   return (
     <View style={styles.webOuter}>
       <View style={styles.webInner}>
@@ -36,6 +46,10 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
+  webFull: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+  },
   webOuter: {
     flex: 1,
     backgroundColor: '#D6E0EC',
@@ -49,7 +63,7 @@ const styles = StyleSheet.create({
   },
   webInner: {
     width: '100%',
-    maxWidth: MAX_W,
+    maxWidth: MOBILE_FRAME_W,
     flex: 1,
     overflow: 'hidden',
     backgroundColor: '#ffffff',

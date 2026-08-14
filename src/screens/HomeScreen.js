@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient }    from 'expo-linear-gradient';
+import { Asset }             from 'expo-asset';
 import {
   Bell, Search, Heart, Home as HomeIcon,
   AlertTriangle, ChevronRight, MapPin,
@@ -25,6 +26,7 @@ import { T }         from '../theme/typography';
 import GlassCard     from '../components/GlassCard';
 import AlertCard     from '../components/AlertCard';
 import MadyButton    from '../components/MadyButton';
+import { useIsDesktop } from '../hooks/useIsDesktop';
 
 // ── Assets hero carousel ─────────────────────────────────────────────────────
 const HERO_SLIDES = [
@@ -72,7 +74,7 @@ const ACTIONS = [
 //  Sub-componentes
 // ─────────────────────────────────────────────────────────────────────────────
 
-function QuickAction({ item, onPress }) {
+function QuickAction({ item, onPress, isDesktop }) {
   const scale = useRef(new Animated.Value(1)).current;
   const { Icon } = item;
   return (
@@ -80,13 +82,15 @@ function QuickAction({ item, onPress }) {
       onPressIn={() => Animated.spring(scale, { toValue: 0.92, useNativeDriver: true, speed: 80 }).start()}
       onPressOut={() => Animated.spring(scale, { toValue: 1,    useNativeDriver: true, speed: 80 }).start()}
       onPress={onPress}
-      style={{ flex: 1 }}
+      style={{ flex: 1, flexBasis: 0 }}
     >
-      <Animated.View style={[qa.card, { backgroundColor: item.bg, transform: [{ scale }] }]}>
-        <View style={[qa.iconWrap, { backgroundColor: item.color + '20' }]}>
-          <Icon size={20} color={item.color} strokeWidth={1.75} />
+      <Animated.View
+        style={[qa.card, isDesktop && qa.cardDesktop, { backgroundColor: item.bg, transform: [{ scale }] }]}
+      >
+        <View style={[qa.iconWrap, isDesktop && qa.iconWrapDesktop, { backgroundColor: item.color + '20' }]}>
+          <Icon size={isDesktop ? 26 : 20} color={item.color} strokeWidth={1.75} />
         </View>
-        <Text style={[qa.label, { color: item.color }]}>{item.label}</Text>
+        <Text style={[qa.label, isDesktop && qa.labelDesktop, { color: item.color }]}>{item.label}</Text>
       </Animated.View>
     </Pressable>
   );
@@ -95,6 +99,12 @@ const qa = StyleSheet.create({
   card:    { alignItems:'center', padding: S[14], borderRadius: R.xl, gap: S[8] },
   iconWrap:{ width:42, height:42, borderRadius: R.lg, alignItems:'center', justifyContent:'center' },
   label:   { fontSize: 11, fontWeight:'700', textAlign:'center' },
+  // Desktop: antes las 4 cards quedaban carriles finitos (mucho ancho por
+  // columna, altura chica y fija por el contenido) — más padding vertical
+  // e ícono más grande para una proporción más cuadrada/compacta.
+  cardDesktop:     { paddingVertical: S[28], paddingHorizontal: S[16], gap: S[12] },
+  iconWrapDesktop: { width: 56, height: 56, borderRadius: R.xl },
+  labelDesktop:    { fontSize: 13 },
 });
 
 function ActivityRow({ item, onPress }) {
@@ -183,10 +193,51 @@ const sx = StyleSheet.create({
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+//  HeroImageLayer — una capa de foto del hero
+//
+//  El <Image> de React Native (también en web) solo soporta resizeMode
+//  (cover/contain/…), no un punto de foco/posición como el object-position
+//  de CSS — cualquier estilo objectPosition que se le pase se ignora en
+//  silencio y siempre recorta centrado 50/50. Por eso "el perro se veía
+//  cortado" pasara lo que pasara con esos estilos.
+//  En web se resuelve con un <View> con backgroundImage/backgroundPosition
+//  propios (bypassea el <Image>), así se puede subir el foco de recorte y
+//  dejar de cortarle la cabeza/orejas al perro. En nativo no hace falta:
+//  ahí sí se usa el <Image> normal (el recorte real ocurre solo en desktop
+//  web, donde la card es mucho más panorámica que la foto original).
+// ─────────────────────────────────────────────────────────────────────────────
+function HeroImageLayer({ source, opacity }) {
+  if (Platform.OS === 'web') {
+    const uri = Asset.fromModule(source)?.uri;
+    return (
+      <Animated.View
+        style={[
+          StyleSheet.absoluteFillObject,
+          {
+            opacity,
+            backgroundImage: `url(${uri})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center 10%',
+            backgroundRepeat: 'no-repeat',
+          },
+        ]}
+      />
+    );
+  }
+  return (
+    <Animated.Image
+      source={source}
+      style={[StyleSheet.absoluteFillObject, { width: '100%', height: '100%', opacity }]}
+      resizeMode="cover"
+    />
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 //  HeroCarousel — Crossfade automático entre HERO_SLIDES
 //  Texto fijo · solo la foto cambia · 10s · fade 800ms
 // ─────────────────────────────────────────────────────────────────────────────
-function HeroCarousel({ onPressAlerts, onPressReport }) {
+function HeroCarousel({ onPressAlerts, onPressReport, isDesktop }) {
   // Dos capas de imagen: la que "sale" (fadeOut) y la que "entra" (fadeIn)
   const [topIdx, setTopIdx]   = useState(0);           // imagen visible ahora
   const [nextIdx, setNextIdx] = useState(1);           // imagen que va a entrar
@@ -224,31 +275,15 @@ function HeroCarousel({ onPressAlerts, onPressReport }) {
 
   return (
     <TouchableOpacity
-      style={s.heroCard}
+      style={[s.heroCard, isDesktop ? s.heroCardDesktop : s.heroCardMobile]}
       onPress={onPressAlerts}
       activeOpacity={0.97}
     >
       {/* ── Capa TOP (foto actual) ────────────────────────────────────────── */}
-      <Animated.Image
-        source={HERO_SLIDES[topIdx]}
-        style={[
-          StyleSheet.absoluteFillObject,
-          { width: '100%', height: '100%', opacity: topOpacity },
-          Platform.OS === 'web' && { objectFit: 'cover', objectPosition: 'center 25%' },
-        ]}
-        resizeMode="cover"
-      />
+      <HeroImageLayer source={HERO_SLIDES[topIdx]} opacity={topOpacity} />
 
       {/* ── Capa NEXT (foto entrante) ─────────────────────────────────────── */}
-      <Animated.Image
-        source={HERO_SLIDES[nextIdx]}
-        style={[
-          StyleSheet.absoluteFillObject,
-          { width: '100%', height: '100%', opacity: nextOpacity },
-          Platform.OS === 'web' && { objectFit: 'cover', objectPosition: 'center 25%' },
-        ]}
-        resizeMode="cover"
-      />
+      <HeroImageLayer source={HERO_SLIDES[nextIdx]} opacity={nextOpacity} />
 
       {/* ── Degradé teal — siempre encima de las fotos ───────────────────── */}
       <LinearGradient
@@ -293,6 +328,7 @@ function HeroCarousel({ onPressAlerts, onPressReport }) {
 // ─────────────────────────────────────────────────────────────────────────────
 export default function HomeScreen({ navigation }) {
   const insets    = useSafeAreaInsets();
+  const isDesktop = useIsDesktop();
   const { currentUser } = useAuth();
   const firstName = (currentUser?.user_metadata?.name || currentUser?.name || 'Amigo').split(' ')[0];
 
@@ -384,28 +420,29 @@ export default function HomeScreen({ navigation }) {
 
         {/* ═══════════════════════════════════════════════════ HERO ══ */}
         <Animated.View style={{ opacity: fade, transform: [{ translateY: slide }] }}>
-          <HeroCarousel onPressAlerts={nav('Mapa')} onPressReport={nav('Reportar')} />
+          <HeroCarousel onPressAlerts={nav('Mapa')} onPressReport={nav('Reportar')} isDesktop={isDesktop} />
         </Animated.View>
 
         {/* ═══════════════════════════════════════════ ACCIONES ══ */}
         <Animated.View style={[s.section, { opacity: fade }]}>
-          <View style={s.actionsGrid}>
+          <View style={[s.actionsGrid, isDesktop && s.actionsGridDesktop]}>
             {ACTIONS.map((item) => (
-              <QuickAction key={item.key} item={item} onPress={nav(item.screen)} />
+              <QuickAction key={item.key} item={item} onPress={nav(item.screen)} isDesktop={isDesktop} />
             ))}
           </View>
         </Animated.View>
 
         {/* ═══════════════════════════════════════════════ STATS ══ */}
-        <Animated.View style={[{ opacity: fade }, s.statsRow]}>
+        <Animated.View style={[{ opacity: fade }, s.statsRow, isDesktop && s.statsRowDesktop]}>
           {[
             { val: mascotas.length,  lbl:'Mis mascotas', color: C.teal  },
             { val: '12',             lbl:'Alertas hoy',  color: C.coral },
             { val: '3',              lbl:'Encontradas',  color: C.found },
           ].map((st) => (
-            <View key={st.lbl} style={[s.statCard, { borderTopColor: st.color }]}>
-              <Text style={[s.statVal, { color: st.color }]}>{st.val}</Text>
-              <Text style={s.statLbl}>{st.lbl}</Text>
+            <View key={st.lbl} style={[s.statCard, isDesktop && s.statCardDesktop]}>
+              <View style={[s.statAccent, { backgroundColor: st.color }]} />
+              <Text style={[s.statVal, isDesktop && s.statValDesktop, { color: st.color }]}>{st.val}</Text>
+              <Text style={[s.statLbl, isDesktop && s.statLblDesktop]}>{st.lbl}</Text>
             </View>
           ))}
         </Animated.View>
@@ -414,17 +451,27 @@ export default function HomeScreen({ navigation }) {
         <View style={s.section}>
           <SectionHead title="Cerca de ti" onAction={nav('Mapa')} />
         </View>
-        <FlatList
-          horizontal
-          data={alertas}
-          keyExtractor={(i) => i.id}
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: S[20], paddingBottom: S[4] }}
-          renderItem={({ item }) => (
-            <AlertCard item={item} onPress={nav('Mapa')} />
-          )}
-          ItemSeparatorComponent={() => <View style={{ width: 12 }} />}
-        />
+        {isDesktop ? (
+          // Desktop: grilla que envuelve (wrap) — se ven todas las tarjetas
+          // completas, ninguna queda cortada en el borde de la ventana.
+          <View style={s.alertsGridDesktop}>
+            {alertas.map((item) => (
+              <AlertCard key={item.id} item={item} onPress={nav('Mapa')} />
+            ))}
+          </View>
+        ) : (
+          <FlatList
+            horizontal
+            data={alertas}
+            keyExtractor={(i) => i.id}
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal: S[20], paddingBottom: S[4] }}
+            renderItem={({ item }) => (
+              <AlertCard item={item} onPress={nav('Mapa')} />
+            )}
+            ItemSeparatorComponent={() => <View style={{ width: 12 }} />}
+          />
+        )}
 
         {/* ══════════════════════════════════════ MIS MASCOTAS ══ */}
         <View style={s.section}>
@@ -494,7 +541,6 @@ const s = StyleSheet.create({
   // Hero — MÁS ALTO para impacto visual
   heroCard: {
     marginHorizontal: S[20], marginTop: S[20], marginBottom: S[4],
-    height: 290,
     borderRadius: 28,
     overflow: 'hidden',
     shadowColor: C.tealDeep,
@@ -502,6 +548,20 @@ const s = StyleSheet.create({
     shadowOpacity: 0.28,
     shadowRadius: 28,
     elevation: 14,
+  },
+  // Mobile: altura fija (ancho de pantalla real, ratio fijo por diseño ~1.3:1)
+  heroCardMobile: { height: 290 },
+  // Desktop (>900px): antes tenía "height" fijo con "maxWidth" — por debajo
+  // del cap el ancho variaba con la ventana pero la altura no, así que el
+  // aspect-ratio (y por lo tanto el encuadre/zoom de "cover") cambiaba con
+  // cada ancho: a 900px se veía distinto que a 1150px. Con `aspectRatio` fijo
+  // el encuadre es EXACTAMENTE el mismo sea cual sea el ancho de pantalla;
+  // `maxWidth` solo limita qué tan grande puede llegar a ser la card.
+  heroCardDesktop: {
+    maxWidth: 1100,
+    alignSelf: 'center',
+    width: '100%',
+    aspectRatio: 2.05,
   },
 
   // Live badge
@@ -533,12 +593,32 @@ const s = StyleSheet.create({
 
   // Acciones
   section:     { paddingHorizontal: S[20], marginTop: S[20] },
+  // Desktop: grilla que envuelve en vez de scroll horizontal — nada se corta
+  alertsGridDesktop: {
+    flexDirection: 'row', flexWrap: 'wrap',
+    gap: 12, paddingHorizontal: S[20], paddingBottom: S[4],
+  },
   actionsGrid: { flexDirection:'row', gap: S[8] },
+  // Desktop: cap de ancho — si no, con 4 columnas en un container de hasta
+  // ~1360px cada card queda una franja finita (ancho >> alto).
+  actionsGridDesktop: { maxWidth: 760, alignSelf: 'center', width: '100%', gap: S[16] },
 
   // Stats
   statsRow:    { flexDirection:'row', gap: S[8], paddingHorizontal: S[20], marginTop: S[8] },
-  statCard:    { flex:1, backgroundColor: C.white, borderRadius: R.lg, padding: S[14],
-                 alignItems:'center', borderTopWidth:3, ...SH.xs },
+  // Desktop: mismo problema que actionsGrid — cap de ancho + más padding
+  // vertical para que no queden franjas finitas.
+  statsRowDesktop: { maxWidth: 760, alignSelf: 'center', width: '100%', gap: S[16] },
+  // El acento de color era un borderTopWidth: en CSS/RN-web un borde de lado
+  // no sigue el border-radius de la card, así que se veía cortado feo en las
+  // esquinas. Se reemplaza por una franja lateral izquierda (View absoluto),
+  // que queda prolijamente recortada por el overflow:hidden de la card.
+  statCard:    { flex:1, flexBasis:0, backgroundColor: C.white, borderRadius: R.lg, padding: S[14],
+                 paddingLeft: S[14] + 4, alignItems:'center', overflow:'hidden',
+                 position:'relative', ...SH.xs },
+  statCardDesktop: { paddingVertical: S[28] },
+  statAccent:  { position:'absolute', left:0, top:0, bottom:0, width:4 },
   statVal:     { fontSize:22, fontWeight:'900', lineHeight:26 },
+  statValDesktop: { fontSize:28, lineHeight:32 },
   statLbl:     { fontSize:10, color: C.inkMuted, marginTop:3, fontWeight:'500', textAlign:'center' },
+  statLblDesktop: { fontSize:12, marginTop: S[6] },
 });

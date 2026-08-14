@@ -9,6 +9,7 @@ import { R, S } from '../theme/spacing';
 import { T } from '../theme/typography';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
+import { useIsDesktop } from '../hooks/useIsDesktop';
 
 function formatTime(ts) {
   const diff = (Date.now() - new Date(ts)) / 60000;
@@ -26,6 +27,7 @@ const TYPE_CONFIG = {
 
 export default function NotificacionesScreen({ navigation }) {
   const insets = useSafeAreaInsets();
+  const isDesktop = useIsDesktop();
   const { currentUser } = useAuth();
   const [alertas, setAlertas]   = useState([]);
   const [loading, setLoading]   = useState(true);
@@ -96,7 +98,7 @@ export default function NotificacionesScreen({ navigation }) {
           data={alertas}
           keyExtractor={i => i.id}
           renderItem={renderItem}
-          contentContainerStyle={s.list}
+          contentContainerStyle={[s.list, isDesktop && s.listDesktop]}
           showsVerticalScrollIndicator={false}
           ItemSeparatorComponent={() => <View style={s.divider} />}
         />
@@ -113,6 +115,8 @@ const s = StyleSheet.create({
   title:  { fontSize: T.xl, fontWeight: '800', color: C.ink },
 
   list:   { paddingBottom: 100 },
+  // Desktop (>900px): feed centrado tipo bandeja, no estira las filas de punta a punta
+  listDesktop: { width: '100%', maxWidth: 720, alignSelf: 'center' },
   divider:{ height: 1, backgroundColor: C.border, marginLeft: 72 },
 
   row:     { flexDirection: 'row', alignItems: 'center', gap: 12, padding: S[16], backgroundColor: C.white },

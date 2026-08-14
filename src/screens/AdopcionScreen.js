@@ -8,9 +8,11 @@ import { R, S } from '../theme/spacing';
 import { T } from '../theme/typography';
 import { supabase } from '../lib/supabase';
 import { getAdoptantProfile, likeAdoption } from '../services/adoptantService';
+import { useIsDesktop } from '../hooks/useIsDesktop';
 
 export default function AdopcionScreen({ navigation }) {
   const insets = useSafeAreaInsets();
+  const isDesktop = useIsDesktop();
   const [loading, setLoading] = useState(true);
   const [hasProfile, setHasProfile] = useState(false);
   const [mascotas, setMascotas] = useState([]);
@@ -191,9 +193,12 @@ export default function AdopcionScreen({ navigation }) {
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={st.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={[st.content, isDesktop && st.contentDesktop]}
+        showsVerticalScrollIndicator={false}
+      >
         {currentPet && (
-          <View style={st.petCard}>
+          <View style={[st.petCard, isDesktop && st.petCardDesktop]}>
             {currentPet.photo_url ? (
               <Image source={{ uri: currentPet.photo_url }} style={st.petPhoto} resizeMode="cover" />
             ) : (
@@ -247,6 +252,11 @@ const st = StyleSheet.create({
   headerBtnTxt: { fontSize: 20 },
 
   content: { padding: S[16], paddingBottom: 100 },
+  // Desktop (>900px): la tarjeta de swipe se mantiene centrada y con un ancho
+  // fijo cómodo (es el patrón correcto para este tipo de UI, como Tinder web),
+  // en vez de estirarse de punta a punta de la ventana.
+  contentDesktop: { alignItems: 'center' },
+  petCardDesktop: { width: '100%', maxWidth: 440 },
   petCard: {
     backgroundColor: C.white,
     borderRadius: R.xl,

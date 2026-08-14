@@ -9,6 +9,7 @@ import Button      from '../components/Button';
 import GoldDivider from '../components/GoldDivider';
 import { COLORS, FONTS, RADIUS, SHADOW, SPACING } from '../theme';
 import { actualizarMascota, eliminarMascota, subirFotoMascota } from '../services/mascotasService';
+import { useIsDesktop } from '../hooks/useIsDesktop';
 
 const STATUS_MAP = {
   home:  { label: 'En casa',    color: COLORS.success,  bg: COLORS.successBg, icon: '🏠' },
@@ -55,6 +56,7 @@ function Field({ label, value, onChange }) {
 
 export default function PerfilMascotaScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
+  const isDesktop = useIsDesktop();
   const petParam = route.params?.pet;
   const [pet, setPet]             = useState(petParam);
   const [status, setStatus]       = useState(petParam?.status || 'home');
@@ -223,7 +225,10 @@ export default function PerfilMascotaScreen({ navigation, route }) {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={[styles.scroll, isDesktop && styles.scrollDesktop]}
+        showsVerticalScrollIndicator={false}
+      >
 
         <Section title="📋 Información general">
           <InfoRow label="Género"  value={pet.gender}  icon="⚥" />
@@ -314,6 +319,8 @@ const styles = StyleSheet.create({
   statusLabel: { fontSize: FONTS.sm, fontWeight: FONTS.semibold },
 
   scroll: { padding: SPACING.lg },
+  // Desktop (>900px): columna centrada, no estira el detalle de punta a punta
+  scrollDesktop: { width: '100%', maxWidth: 640, alignSelf: 'center' },
 
   section:      { marginBottom: SPACING.md },
   sectionTitle: { fontSize: FONTS.md, fontWeight: FONTS.bold, color: COLORS.black, marginBottom: SPACING.sm, fontFamily: 'serif' },
