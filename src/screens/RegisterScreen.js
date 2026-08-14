@@ -22,6 +22,7 @@ import { useAuth }   from '../context/AuthContext';
 import FormInput     from '../components/FormInput';
 import MadyLogo      from '../components/MadyLogo';
 import { COLORS, FONTS, RADIUS, SHADOW, SPACING } from '../theme';
+import { useIsDesktop } from '../hooks/useIsDesktop';
 
 // ── Validadores por paso ──────────────────────────────────────────────────────
 function validateStep1(f) {
@@ -136,6 +137,7 @@ const sbStyles = StyleSheet.create({
 export default function RegisterScreen({ navigation }) {
   const insets       = useSafeAreaInsets();
   const { register } = useAuth();
+  const isDesktop    = useIsDesktop(); // >900px → columna centrada más ancha, sin marco mobile
   const TOTAL_STEPS  = 2;
 
   const [step, setStep] = useState(1);
@@ -222,6 +224,7 @@ export default function RegisterScreen({ navigation }) {
         style={styles.scroll}
         contentContainerStyle={[
           styles.content,
+          isDesktop && styles.contentDesktop,
           { paddingTop: insets.top + SPACING.lg, paddingBottom: insets.bottom + SPACING.xl },
         ]}
         keyboardShouldPersistTaps="handled"
@@ -486,6 +489,11 @@ const styles = StyleSheet.create({
   kav:    { flex: 1 },
   scroll: { flex: 1, backgroundColor: COLORS.cream },
   content:{ paddingHorizontal: SPACING.lg, flexGrow: 1 },
+  // Desktop (>900px): columna centrada más ancha, no una tarjeta mobile estirada
+  contentDesktop: {
+    width: '100%', maxWidth: 560, alignSelf: 'center',
+    paddingHorizontal: 0, justifyContent: 'center',
+  },
 
   header: {
     flexDirection:  'row',

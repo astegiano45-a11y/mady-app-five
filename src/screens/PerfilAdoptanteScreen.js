@@ -9,6 +9,7 @@ import { R, S } from '../theme/spacing';
 import { T } from '../theme/typography';
 import { supabase } from '../lib/supabase';
 import { getAdoptantProfile, createAdoptantProfile, updateAdoptantProfile } from '../services/adoptantService';
+import { useIsDesktop } from '../hooks/useIsDesktop';
 
 function RadioGroup({ label, options, value, onChange }) {
   return (
@@ -59,6 +60,7 @@ function CheckboxGroup({ label, options, value, onChange }) {
 
 export default function PerfilAdoptanteScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
+  const isDesktop = useIsDesktop();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -144,7 +146,10 @@ export default function PerfilAdoptanteScreen({ navigation, route }) {
         <Text style={st.title}>Mi perfil de adoptante</Text>
       </View>
 
-      <ScrollView contentContainerStyle={st.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={[st.content, isDesktop && st.contentDesktop]}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={st.card}>
           <Text style={st.cardTitle}>¿Qué tamaño de perro te gustaría?</Text>
           <RadioGroup
@@ -235,6 +240,8 @@ const st = StyleSheet.create({
   title: { fontSize: T.xl, fontWeight: '800', color: C.ink, flex: 1 },
 
   content: { padding: S[16], gap: 16, paddingBottom: 100 },
+  // Desktop (>900px): columna centrada, no estira el formulario de punta a punta
+  contentDesktop: { width: '100%', maxWidth: 640, alignSelf: 'center' },
   card: { backgroundColor: C.white, borderRadius: R.xl, padding: S[16], gap: 16, borderWidth: 1, borderColor: C.border },
   cardTitle: { fontSize: T.base, fontWeight: '700', color: C.ink },
 

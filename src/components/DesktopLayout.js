@@ -24,7 +24,7 @@ export default function DesktopLayout({ children, currentScreen, navigation }) {
         <Text style={st.logo}>🐾 Mady</Text>
         <View style={st.navLinks}>
           {[
-            { label: 'Inicio', screen: 'Home' },
+            { label: 'Inicio', screen: 'Inicio' },
             { label: 'Mapa', screen: 'Mapa' },
             { label: 'Adopción', screen: 'Adopcion' },
             { label: 'Comunidad', screen: 'Comunidad' },
@@ -40,7 +40,10 @@ export default function DesktopLayout({ children, currentScreen, navigation }) {
             </TouchableOpacity>
           ))}
         </View>
-        <TouchableOpacity style={st.profileBtn}>
+        <TouchableOpacity
+          style={st.profileBtn}
+          onPress={() => navigation?.navigate('Perfil')}
+        >
           <Text style={st.profileBtnTxt}>👤 Perfil</Text>
         </TouchableOpacity>
       </View>

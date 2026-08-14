@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
+import { useIsDesktop } from '../hooks/useIsDesktop';
 
 // ── Design tokens (Turquesa + Coral + Blanco — colores bandera TDF) ──────────
 const D = {
@@ -219,8 +220,9 @@ const btnS = StyleSheet.create({
 
 // ── Pantalla principal ────────────────────────────────────────────────────────
 export default function LoginScreen({ navigation }) {
-  const insets    = useSafeAreaInsets();
-  const { login } = useAuth();
+  const insets     = useSafeAreaInsets();
+  const { login }  = useAuth();
+  const isDesktop  = useIsDesktop(); // >900px → layout tipo landing (hero + form)
 
   const [email,    setEmail]    = useState('');
   const [password, setPassword] = useState('');
@@ -288,6 +290,179 @@ export default function LoginScreen({ navigation }) {
     }
   };
 
+  // ── Card de formulario — compartida entre layout mobile y desktop ──────────
+  const formCard = (
+    <Animated.View
+      style={[
+        s.card,
+        isDesktop && s.cardDesktop,
+        {
+          opacity: formOpacity,
+          transform: [
+            { translateY: formSlide },
+            { translateX: shakeX },
+          ],
+        },
+      ]}
+    >
+      <Text style={s.title} accessibilityRole="header">Iniciar sesión</Text>
+      <Text style={s.subtitle}>Bienvenido/a de vuelta 🐾</Text>
+
+      {/* Error global de autenticación — accesslint: aria-live */}
+      {authErr ? (
+        <View
+          style={s.authErrBox}
+          accessibilityLiveRegion="assertive"
+          accessible
+          accessibilityLabel={`Error de inicio de sesión: ${authErr}`}
+        >
+          <Text style={s.authErrText}>{authErr}</Text>
+        </View>
+      ) : null}
+
+      {/* Campos — web-guidelines: visible labels + error near field */}
+      <Field
+        label="Correo electrónico"
+        value={email}
+        onChangeText={t => { setEmail(t); setErrors(e => ({ ...e, email: '' })); setAuthErr(''); }}
+        type="email"
+        error={errors.email}
+        returnKeyType="next"
+        onSubmit={() => passwordRef.current?.focus()}
+      />
+      <Field
+        label="Contraseña"
+        value={password}
+        onChangeText={t => { setPassword(t); setErrors(e => ({ ...e, password: '' })); setAuthErr(''); }}
+        type="password"
+        error={errors.password}
+        returnKeyType="done"
+        onSubmit={handleLogin}
+        inputRef={passwordRef}
+      />
+
+      {/* ¿Olvidaste? — touch target ≥44pt */}
+      <Pressable
+        style={s.forgotBtn}
+        onPress={() => {}}
+        accessibilityRole="button"
+        accessibilityLabel="¿Olvidaste tu contraseña?"
+        accessibilityHint="Abre el flujo de recuperación de contraseña"
+        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+      >
+        <Text style={s.forgotText}>¿Olvidaste tu contraseña?</Text>
+      </Pressable>
+
+      {/* CTA principal */}
+      <PrimaryBtn
+        label="Entrar a Mady"
+        onPress={handleLogin}
+        loading={loading}
+        accessibilityHint="Inicia sesión con tu correo y contraseña"
+      />
+
+      {/* Divisor */}
+      <View style={s.divRow} accessible={false}>
+        <View style={s.divLine} />
+        <Text style={s.divText}>o</Text>
+        <View style={s.divLine} />
+      </View>
+
+      {/* Registro */}
+      <Pressable
+        style={({ pressed }) => [s.regBtn, pressed && s.regBtnPressed]}
+        onPress={() => navigation.navigate('Register')}
+        accessibilityRole="button"
+        accessibilityLabel="Crear cuenta nueva"
+        accessibilityHint="Navega a la pantalla de registro"
+      >
+        <Text style={s.regText}>Crear cuenta nueva</Text>
+      </Pressable>
+
+      <Text style={s.terms} accessible accessibilityRole="text">
+        Al ingresar aceptas nuestros{' '}
+        <Text style={s.termsLink}>Términos de uso</Text>
+        {' '}y la{' '}
+        <Text style={s.termsLink}>Política de privacidad</Text>
+      </Text>
+    </Animated.View>
+  );
+
+  // ── Cuentas de prueba (dev) — compartida entre layouts ──────────────────────
+  const devSection = (
+    <View style={s.devSection} accessible={false}>
+      <Text style={s.devLabel}>🧪 Cuentas de prueba</Text>
+      <View style={s.devRow}>
+        {[
+          { name: 'Sofía', email: 'sofia@madyapp.com', pass: '123456' },
+          { name: 'Carlos', email: 'carlos@test.com', pass: 'abcdef' },
+        ].map(acc => (
+          <Pressable
+            key={acc.email}
+            style={({ pressed }) => [s.devChip, pressed && s.devChipPressed]}
+            onPress={() => { setEmail(acc.email); setPassword(acc.pass); setErrors({}); setAuthErr(''); }}
+            accessibilityRole="button"
+            accessibilityLabel={`Usar cuenta de prueba ${acc.name}`}
+          >
+            <Text style={s.devChipText}>{acc.name}</Text>
+          </Pressable>
+        ))}
+      </View>
+    </View>
+  );
+
+  // ── Layout DESKTOP (>900px): landing tipo split — hero a la izquierda,
+  //    formulario a la derecha. Sin scroll de página, aprovecha el ancho real. ──
+  if (isDesktop) {
+    return (
+      <View style={s.desktopRoot}>
+        {/* Panel izquierdo — marca / hero */}
+        <View style={s.heroPanel}>
+          <Animated.View
+            style={[s.heroContent, { opacity: logoOpacity, transform: [{ scale: logoScale }] }]}
+            accessible
+            accessibilityRole="image"
+            accessibilityLabel="Logo de Mady App, un perro con anillo dorado"
+          >
+            <Image
+              source={require('../../assets/mady_logo.png')}
+              style={s.heroLogoImg}
+              resizeMode="contain"
+              accessible={false}
+            />
+            <Text style={s.heroTitle}>Mady App</Text>
+            <Text style={s.heroTagline}>Tu compañero siempre contigo</Text>
+
+            <View style={s.heroFeatures} accessible={false}>
+              {[
+                ['📍', 'Mascotas perdidas cerca tuyo, en tiempo real'],
+                ['🤝', 'Una red de vecinos que ayuda a reencontrarlas'],
+                ['🐾', 'Adopción responsable, estilo swipe'],
+              ].map(([icon, text]) => (
+                <View key={text} style={s.heroFeatureRow}>
+                  <Text style={s.heroFeatureIcon}>{icon}</Text>
+                  <Text style={s.heroFeatureText}>{text}</Text>
+                </View>
+              ))}
+            </View>
+          </Animated.View>
+        </View>
+
+        {/* Panel derecho — formulario */}
+        <ScrollView
+          style={s.formPanel}
+          contentContainerStyle={s.formPanelContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          {formCard}
+          {devSection}
+        </ScrollView>
+      </View>
+    );
+  }
+
+  // ── Layout MOBILE (<900px): diseño original, sin cambios ────────────────────
   return (
     <KeyboardAvoidingView
       style={s.root}
@@ -322,121 +497,8 @@ export default function LoginScreen({ navigation }) {
           </Text>
         </Animated.View>
 
-        {/* ── Card de formulario ── */}
-        <Animated.View
-          style={[
-            s.card,
-            {
-              opacity: formOpacity,
-              transform: [
-                { translateY: formSlide },
-                { translateX: shakeX },
-              ],
-            },
-          ]}
-        >
-          <Text style={s.title} accessibilityRole="header">Iniciar sesión</Text>
-          <Text style={s.subtitle}>Bienvenido/a de vuelta 🐾</Text>
-
-          {/* Error global de autenticación — accesslint: aria-live */}
-          {authErr ? (
-            <View
-              style={s.authErrBox}
-              accessibilityLiveRegion="assertive"
-              accessible
-              accessibilityLabel={`Error de inicio de sesión: ${authErr}`}
-            >
-              <Text style={s.authErrText}>{authErr}</Text>
-            </View>
-          ) : null}
-
-          {/* Campos — web-guidelines: visible labels + error near field */}
-          <Field
-            label="Correo electrónico"
-            value={email}
-            onChangeText={t => { setEmail(t); setErrors(e => ({ ...e, email: '' })); setAuthErr(''); }}
-            type="email"
-            error={errors.email}
-            returnKeyType="next"
-            onSubmit={() => passwordRef.current?.focus()}
-          />
-          <Field
-            label="Contraseña"
-            value={password}
-            onChangeText={t => { setPassword(t); setErrors(e => ({ ...e, password: '' })); setAuthErr(''); }}
-            type="password"
-            error={errors.password}
-            returnKeyType="done"
-            onSubmit={handleLogin}
-            inputRef={passwordRef}
-          />
-
-          {/* ¿Olvidaste? — touch target ≥44pt */}
-          <Pressable
-            style={s.forgotBtn}
-            onPress={() => {}}
-            accessibilityRole="button"
-            accessibilityLabel="¿Olvidaste tu contraseña?"
-            accessibilityHint="Abre el flujo de recuperación de contraseña"
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-          >
-            <Text style={s.forgotText}>¿Olvidaste tu contraseña?</Text>
-          </Pressable>
-
-          {/* CTA principal */}
-          <PrimaryBtn
-            label="Entrar a Mady"
-            onPress={handleLogin}
-            loading={loading}
-            accessibilityHint="Inicia sesión con tu correo y contraseña"
-          />
-
-          {/* Divisor */}
-          <View style={s.divRow} accessible={false}>
-            <View style={s.divLine} />
-            <Text style={s.divText}>o</Text>
-            <View style={s.divLine} />
-          </View>
-
-          {/* Registro */}
-          <Pressable
-            style={({ pressed }) => [s.regBtn, pressed && s.regBtnPressed]}
-            onPress={() => navigation.navigate('Register')}
-            accessibilityRole="button"
-            accessibilityLabel="Crear cuenta nueva"
-            accessibilityHint="Navega a la pantalla de registro"
-          >
-            <Text style={s.regText}>Crear cuenta nueva</Text>
-          </Pressable>
-
-          <Text style={s.terms} accessible accessibilityRole="text">
-            Al ingresar aceptas nuestros{' '}
-            <Text style={s.termsLink}>Términos de uso</Text>
-            {' '}y la{' '}
-            <Text style={s.termsLink}>Política de privacidad</Text>
-          </Text>
-        </Animated.View>
-
-        {/* ── Test accounts (dev) ── */}
-        <View style={s.devSection} accessible={false}>
-          <Text style={s.devLabel}>🧪 Cuentas de prueba</Text>
-          <View style={s.devRow}>
-            {[
-              { name: 'Sofía', email: 'sofia@madyapp.com', pass: '123456' },
-              { name: 'Carlos', email: 'carlos@test.com', pass: 'abcdef' },
-            ].map(acc => (
-              <Pressable
-                key={acc.email}
-                style={({ pressed }) => [s.devChip, pressed && s.devChipPressed]}
-                onPress={() => { setEmail(acc.email); setPassword(acc.pass); setErrors({}); setAuthErr(''); }}
-                accessibilityRole="button"
-                accessibilityLabel={`Usar cuenta de prueba ${acc.name}`}
-              >
-                <Text style={s.devChipText}>{acc.name}</Text>
-              </Pressable>
-            ))}
-          </View>
-        </View>
+        {formCard}
+        {devSection}
 
       </ScrollView>
     </KeyboardAvoidingView>
@@ -459,6 +521,48 @@ const s = StyleSheet.create({
     paddingVertical: D.sp48,
   },
 
+  // ── Desktop (>900px): layout tipo landing, split en dos paneles ────────────
+  desktopRoot: {
+    flex: 1,
+    flexDirection: 'row',
+    minHeight: Platform.OS === 'web' ? '100vh' : undefined,
+    backgroundColor: D.surface,
+  },
+  heroPanel: {
+    flex: 1,
+    minWidth: 420,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: D.sp48,
+    background: 'linear-gradient(135deg, #0ABFBC 0%, #089A97 40%, #FF6B47 100%)',
+    backgroundColor: D.brand, // fallback nativo
+  },
+  heroContent: { alignItems: 'center', maxWidth: 440 },
+  heroLogoImg: {
+    width: 140, height: 140, marginBottom: D.sp24,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25, shadowRadius: 20,
+  },
+  heroTitle: {
+    fontSize: 34, fontWeight: '800', color: '#FFF',
+    fontFamily: 'Georgia', letterSpacing: 0.3, marginBottom: D.sp8,
+  },
+  heroTagline: {
+    fontSize: D.textMd, color: 'rgba(255,255,255,0.9)',
+    letterSpacing: 1.5, textTransform: 'uppercase',
+    marginBottom: D.sp40, textAlign: 'center',
+  },
+  heroFeatures: { width: '100%', gap: D.sp20 },
+  heroFeatureRow: { flexDirection: 'row', alignItems: 'center', gap: D.sp16 },
+  heroFeatureIcon: { fontSize: 24, width: 32, textAlign: 'center' },
+  heroFeatureText: { flex: 1, fontSize: D.textMd, color: '#FFF', fontWeight: '500', lineHeight: 22 },
+
+  formPanel: { flex: 1 },
+  formPanelContent: {
+    flexGrow: 1, alignItems: 'center', justifyContent: 'center',
+    padding: D.sp48,
+  },
+
   // Logo
   logoWrap: { alignItems: 'center', marginBottom: D.sp32, width: '100%' },
   logoImg: {
@@ -479,6 +583,11 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: D.border,
     shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08, shadowRadius: 16, elevation: 4,
+  },
+  cardDesktop: {
+    maxWidth: 440, // en el panel derecho: no se estira de punta a punta
+    boxShadow: 'none', shadowOpacity: 0, elevation: 0,
+    borderWidth: 0, padding: 0,
   },
   title: {
     fontSize: D.text2xl, fontWeight: '800', color: D.ink,

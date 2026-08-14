@@ -8,6 +8,7 @@ import { C } from '../theme/colors';
 import { R, S } from '../theme/spacing';
 import { T } from '../theme/typography';
 import { supabase } from '../lib/supabase';
+import { useIsDesktop } from '../hooks/useIsDesktop';
 
 function formatTime(ts) {
   const diff = (Date.now() - new Date(ts)) / 60000;
@@ -37,6 +38,8 @@ function PetCard({ item, onPress }) {
 
 export default function EncontradosScreen({ navigation }) {
   const insets = useSafeAreaInsets();
+  const isDesktop = useIsDesktop();
+  const numColumns = isDesktop ? 4 : 2;
   const [alertas, setAlertas]       = useState([]);
   const [loading, setLoading]       = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -74,11 +77,12 @@ export default function EncontradosScreen({ navigation }) {
         </View>
       ) : (
         <FlatList
+          key={numColumns}
           data={alertas}
           keyExtractor={i => i.id}
-          numColumns={2}
+          numColumns={numColumns}
           columnWrapperStyle={{ gap: 12 }}
-          contentContainerStyle={st.list}
+          contentContainerStyle={[st.list, isDesktop && st.listDesktop]}
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={C.found} />}
           renderItem={({ item }) => <PetCard item={item} onPress={() => {}} />}
@@ -107,6 +111,8 @@ const st = StyleSheet.create({
   emptySub: { fontSize: T.sm, color: C.inkLight, textAlign: 'center' },
 
   list: { padding: S[16], gap: 12, paddingBottom: 100 },
+  // Desktop (>900px): grilla más ancha (4 columnas) centrada, aprovecha el espacio
+  listDesktop: { width: '100%', maxWidth: 1100, alignSelf: 'center' },
   card: { flex: 1, backgroundColor: C.white, borderRadius: R.xl, overflow: 'hidden', borderWidth: 1, borderColor: C.border },
   photo: { width: '100%', aspectRatio: 1 },
   photoPlaceholder: { backgroundColor: C.foundBg, alignItems: 'center', justifyContent: 'center' },

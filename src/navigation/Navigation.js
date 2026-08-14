@@ -223,20 +223,27 @@ function AuthStack() {
 }
 
 // ── Main Tabs (5 tabs) - Responsive Desktop/Mobile ────────────────────────────────
-import { useWindowDimensions } from 'react-native';
-import DesktopLayout from '../components/DesktopLayout';
+import { useIsDesktop } from '../hooks/useIsDesktop';
 
 const Stack2 = createNativeStackNavigator();
 
-function DesktopTabs() {
+function DesktopTabs({ navigation }) {
   const [currentScreen, setCurrentScreen] = React.useState('Inicio');
+
+  // Navegación real: despacha al navigator anidado (Stack2) a través del
+  // navigation del stack padre — React Navigation resuelve automáticamente
+  // el screen dentro del navigator anidado con { screen }.
+  // (Antes esto solo actualizaba estado local para el resaltado del link
+  // activo y nunca navegaba de verdad.)
+  const goTo = (screen) => {
+    setCurrentScreen(screen);
+    navigation.navigate('MainTabs', { screen });
+  };
 
   return (
     <DesktopLayout
       currentScreen={currentScreen}
-      navigation={{
-        navigate: (screen) => setCurrentScreen(screen),
-      }}
+      navigation={{ navigate: goTo }}
     >
       <Stack2.Navigator
         screenOptions={{ headerShown: false }}
@@ -244,6 +251,7 @@ function DesktopTabs() {
         <Stack2.Screen name="Inicio" component={HomeScreen} />
         <Stack2.Screen name="Mapa" component={MapScreen} />
         <Stack2.Screen name="Reportar" component={ReportarScreen} />
+        <Stack2.Screen name="Adopcion" component={AdopcionScreen} />
         <Stack2.Screen name="Comunidad" component={ComunidadScreen} />
         <Stack2.Screen name="Perfil" component={PerfilUsuarioScreen} />
       </Stack2.Navigator>
@@ -251,12 +259,11 @@ function DesktopTabs() {
   );
 }
 
-function MainTabs() {
-  const { width } = useWindowDimensions();
-  const isDesktop = width >= 768;
+function MainTabs({ navigation }) {
+  const isDesktop = useIsDesktop();
 
   if (isDesktop) {
-    return <DesktopTabs />;
+    return <DesktopTabs navigation={navigation} />;
   }
 
   return (
