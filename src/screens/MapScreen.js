@@ -163,7 +163,6 @@ export default function MapScreen({ navigation }) {
   const [pins, setPins] = useState(FALLBACK_PINS);
   const [reportingSighting, setReportingSighting] = useState(false);
   const [sightingSuccess, setSightingSuccess] = useState(false);
-  const [contactModal, setContactModal] = useState(null);
   const [sightings, setSightings] = useState([]);
   const [loadingSightings, setLoadingSightings] = useState(false);
 
@@ -256,8 +255,16 @@ export default function MapScreen({ navigation }) {
     );
   }, [slideAnim]);
 
+  // El contacto directo (mensajería in-app) todavía no existe: no hay tabla de
+  // conversaciones/mensajes ni pantalla de chat en el proyecto. Antes esto abría
+  // un segundo modal ("Enviar mensaje"/"Cerrar") cuyo botón no hacía nada — un
+  // callejón sin salida disfrazado de función real. Se reemplaza por un aviso
+  // honesto hasta que la mensajería se construya (ver nota en el informe).
   const handleContact = useCallback((pin) => {
-    setContactModal(pin);
+    Alert.alert(
+      'Función en desarrollo',
+      `El contacto directo con el dueño todavía no está disponible — lo estamos construyendo.${pin.type === 'lost' ? '\n\nMientras tanto, usá "Lo vi aquí" para avisar que viste a ' + pin.name + '.' : ''}`
+    );
   }, []);
 
   const handleLoVi = useCallback(async (pin) => {
@@ -376,39 +383,6 @@ export default function MapScreen({ navigation }) {
         <Text style={scr.fabIcon}>＋</Text>
         <Text style={scr.fabLabel}>Reportar</Text>
       </Pressable>
-
-      {/* ── Modal de contacto ── */}
-      {contactModal && (
-        <Pressable
-          style={scr.modalBackdrop}
-          onPress={() => setContactModal(null)}
-          accessibilityRole="button"
-        >
-          <Pressable style={scr.modalBox} onPress={() => {}}>
-            <Pressable style={scr.modalClose} onPress={() => setContactModal(null)}>
-              <Text style={scr.modalCloseX}>✕</Text>
-            </Pressable>
-            <View style={[scr.modalCircle, { backgroundColor: TYPE_INFO[contactModal.type]?.color + '15' }]}>
-              {contactModal.photo
-                ? <Image source={{ uri: contactModal.photo }} style={{ width: 70, height: 70, borderRadius: 35 }} resizeMode="cover" />
-                : <Text style={scr.modalEmoji}>{TYPE_INFO[contactModal.type]?.label === 'PERDIDO' ? '🐕' : '🐾'}</Text>
-              }
-            </View>
-            <Text style={scr.modalName}>{contactModal.name}</Text>
-            <View style={scr.modalInfo}>
-              <Text style={scr.modalInfoTxt}>📍 {contactModal.zone}</Text>
-              <Text style={scr.modalInfoTxt}>📋 {TYPE_INFO[contactModal.type]?.label}</Text>
-              <Text style={scr.modalInfoTxt}>🕐 Visto hace {contactModal.time}</Text>
-            </View>
-            <Pressable style={scr.modalBtn} onPress={() => { setContactModal(null); Alert.alert('Próximamente', 'Chat para contactar al dueño — Disponible en v3'); }}>
-              <Text style={scr.modalBtnTxt}>💬 Enviar mensaje</Text>
-            </Pressable>
-            <Pressable style={scr.modalBtnSecond} onPress={() => setContactModal(null)}>
-              <Text style={scr.modalBtnSecondTxt}>Cerrar</Text>
-            </Pressable>
-          </Pressable>
-        </Pressable>
-      )}
     </View>
   );
 }
@@ -467,35 +441,4 @@ const scr = StyleSheet.create({
   },
   fabIcon:  { fontSize: 20, color: '#FFF', fontWeight: '800' },
   fabLabel: { fontSize: FONTS.base, fontWeight: '700', color: '#FFF' },
-
-  modalBackdrop: {
-    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center',
-    zIndex: 999,
-  },
-  modalBox: {
-    width: '85%', maxWidth: 320, backgroundColor: '#FFF', borderRadius: RADIUS.xl,
-    padding: SPACING.xl, alignItems: 'center', ...SHADOW.lg,
-  },
-  modalClose: {
-    position: 'absolute', top: SPACING.md, right: SPACING.md,
-    width: 32, height: 32, borderRadius: 16, backgroundColor: '#F3F4F6',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  modalCloseX: { fontSize: 16, color: '#6B7280', fontWeight: '700' },
-  modalCircle: { width: 90, height: 90, borderRadius: 45, alignItems: 'center', justifyContent: 'center', marginBottom: SPACING.md },
-  modalEmoji: { fontSize: 44 },
-  modalName: { fontSize: FONTS.xl, fontWeight: '800', color: '#111827', marginBottom: SPACING.sm },
-  modalInfo: { width: '100%', gap: SPACING.xs, marginBottom: SPACING.lg, backgroundColor: '#F9FAFB', padding: SPACING.md, borderRadius: RADIUS.lg },
-  modalInfoTxt: { fontSize: FONTS.sm, color: '#6B7280', fontWeight: '500' },
-  modalBtn: {
-    width: '100%', backgroundColor: '#DC2626', paddingVertical: SPACING.md,
-    borderRadius: RADIUS.md, alignItems: 'center', marginBottom: SPACING.sm,
-  },
-  modalBtnTxt: { fontSize: FONTS.base, fontWeight: '700', color: '#FFF' },
-  modalBtnSecond: {
-    width: '100%', backgroundColor: '#E5E7EB', paddingVertical: SPACING.md,
-    borderRadius: RADIUS.md, alignItems: 'center',
-  },
-  modalBtnSecondTxt: { fontSize: FONTS.base, fontWeight: '600', color: '#6B7280' },
 });
