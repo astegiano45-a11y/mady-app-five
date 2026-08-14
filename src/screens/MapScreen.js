@@ -12,19 +12,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import LeafletMap from '../components/LeafletMap';
 import { getCurrentLocation, reverseGeocode } from '../services/LocationService';
 import { COLORS, FONTS, RADIUS, SHADOW, SPACING } from '../theme';
-import { createSighting } from '../services/sightingsService';
-
-// Coordenadas reales de Río Grande, TDF
-const ZONE_COORDS = {
-  'Barrio Centro':  { lat: -53.7873, lng: -67.7100 },
-  'Margen Sur':     { lat: -53.8050, lng: -67.6950 },
-  'Chacra XI':      { lat: -53.7750, lng: -67.7300 },
-  'Villa del Mar':  { lat: -53.7650, lng: -67.6800 },
-  'Chacra II':      { lat: -53.7920, lng: -67.7250 },
-  'Chacra III':     { lat: -53.7830, lng: -67.7400 },
-  'Barrio IPVU':    { lat: -53.7700, lng: -67.7150 },
-  'Zona Norte':     { lat: -53.7600, lng: -67.7050 },
-};
+import { createSighting, getSightingsForAlerta } from '../services/sightingsService';
+import { alertCoords } from '../services/proximityService';
 
 const FALLBACK_PINS = [
   { id:'f1', type:'lost',     name:'Mady',   emoji:'🐕', lat:-53.7873, lng:-67.7100, zone:'Barrio Centro', time:'2 h'    },
@@ -38,8 +27,17 @@ const TYPE_INFO = {
   adoption: { label: 'Adopción',   color: '#9333EA', bg: '#FAF5FF' },
 };
 
+// Tiempo relativo tipo "hace 5 min" / "hace 2 h" / "hace 3 días"
+function timeAgo(iso) {
+  const diff = Math.floor((Date.now() - new Date(iso)) / 60000);
+  if (diff < 1) return 'recién';
+  if (diff < 60) return `hace ${diff} min`;
+  if (diff < 1440) return `hace ${Math.floor(diff / 60)} h`;
+  return `hace ${Math.floor(diff / 1440)} días`;
+}
+
 // ── Card de detalle slide-up ──────────────────────────────────────────────────
-function PinCard({ pin, onClose, onContact, onLoVi, reportingSighting }) {
+function PinCard({ pin, onClose, onContact, onLoVi, reportingSighting, sightings = [], loadingSightings }) {
   if (!pin) return null;
   const t = TYPE_INFO[pin.type] || TYPE_INFO.lost;
   return (
@@ -93,6 +91,32 @@ function PinCard({ pin, onClose, onContact, onLoVi, reportingSighting }) {
           </Pressable>
         )}
       </View>
+
+      {/* Avistamientos — más reciente primero (ya viene ordenado así del service) */}
+      {pin.type === 'lost' && (
+        <View style={card.sightingsWrap}>
+          <Text style={card.sightingsTitle}>
+            👀 Avistamientos {sightings.length > 0 ? `(${sightings.length})` : ''}
+          </Text>
+          {loadingSightings ? (
+            <ActivityIndicator size="small" color="#6B7280" style={{ marginTop: 8 }} />
+          ) : sightings.length === 0 ? (
+            <Text style={card.sightingsEmpty}>Todavía nadie reportó haberlo visto.</Text>
+          ) : (
+            <ScrollView style={card.sightingsList} nestedScrollEnabled showsVerticalScrollIndicator={false}>
+              {sightings.map((s) => (
+                <View key={s.id} style={card.sightingRow}>
+                  <View style={card.sightingDot} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={card.sightingText}>{s.description || 'Avistamiento reportado'}</Text>
+                    <Text style={card.sightingTime}>{timeAgo(s.created_at)}</Text>
+                  </View>
+                </View>
+              ))}
+            </ScrollView>
+          )}
+        </View>
+      )}
     </View>
   );
 }
@@ -116,6 +140,16 @@ const card = StyleSheet.create({
   time:      { fontSize: FONTS.xs, color: '#9CA3AF', marginTop: 4 },
   btn:       { borderRadius: RADIUS.md, paddingVertical: SPACING.md, alignItems: 'center', ...SHADOW.sm },
   btnText:   { fontSize: FONTS.base, fontWeight: '700', color: '#FFF' },
+
+  // Avistamientos
+  sightingsWrap:  { marginTop: SPACING.md, paddingTop: SPACING.md, borderTopWidth: 1, borderTopColor: '#F3F4F6' },
+  sightingsTitle: { fontSize: FONTS.sm, fontWeight: '700', color: '#374151', marginBottom: 4 },
+  sightingsEmpty: { fontSize: FONTS.xs, color: '#9CA3AF', marginTop: 4 },
+  sightingsList:  { maxHeight: 140, marginTop: 4 },
+  sightingRow:    { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingVertical: 6 },
+  sightingDot:    { width: 6, height: 6, borderRadius: 3, backgroundColor: '#10B981', marginTop: 6 },
+  sightingText:   { fontSize: FONTS.xs, color: '#374151', fontWeight: '500' },
+  sightingTime:   { fontSize: 10, color: '#9CA3AF', marginTop: 1 },
 });
 
 // ── Pantalla ──────────────────────────────────────────────────────────────────
@@ -130,6 +164,8 @@ export default function MapScreen({ navigation }) {
   const [reportingSighting, setReportingSighting] = useState(false);
   const [sightingSuccess, setSightingSuccess] = useState(false);
   const [contactModal, setContactModal] = useState(null);
+  const [sightings, setSightings] = useState([]);
+  const [loadingSightings, setLoadingSightings] = useState(false);
 
   const slideAnim = useRef(new Animated.Value(300)).current;
 
@@ -154,14 +190,26 @@ export default function MapScreen({ navigation }) {
         .then(({ data }) => {
           if (!data || data.length === 0) return;
           const realPins = data.map(a => {
-            const coords = ZONE_COORDS[a.zone] || { lat: -53.7873, lng: -67.7100 };
+            // Ubicación real de la alerta (lat/lng guardados al reportar) si existe;
+            // si no, cae al centroide de la zona — mismo helper que usa proximityService,
+            // así ambos coinciden en qué se considera "ubicación" de una alerta.
+            const hasRealCoords = typeof a.lat === 'number' && typeof a.lng === 'number';
+            const base = alertCoords(a);
+            // El jitter (± ~300m) solo tiene sentido para el fallback aproximado de
+            // zona, para que no se apilen todos los pines en el mismo punto exacto.
+            // Con ubicación real no se jitterea: sería introducir imprecisión falsa
+            // sobre un dato que ya es preciso.
+            const coords = hasRealCoords
+              ? base
+              : { lat: base.lat + (Math.random() - 0.5) * 0.006, lng: base.lng + (Math.random() - 0.5) * 0.006 };
             const diff = Math.floor((Date.now() - new Date(a.created_at)) / 60000);
             const time = diff < 60 ? `${diff} min` : diff < 1440 ? `${Math.floor(diff/60)} h` : `${Math.floor(diff/1440)} días`;
             return {
               id: a.id, type: a.type || 'lost', name: a.name || '?',
               emoji: a.type === 'found' ? '🐾' : a.type === 'adoption' ? '❤️' : '🐕',
-              lat: coords.lat + (Math.random() - 0.5) * 0.006,
-              lng: coords.lng + (Math.random() - 0.5) * 0.006,
+              lat: coords.lat,
+              lng: coords.lng,
+              exactLocation: hasRealCoords,
               zone: a.zone, time, photo: a.photo_url,
             };
           });
@@ -183,10 +231,24 @@ export default function MapScreen({ navigation }) {
     ? { lat: userLocation.lat, lng: userLocation.lng }
     : { lat: -53.7873, lng: -67.7100 };
 
+  // Carga los avistamientos de una alerta (más reciente primero — ya viene
+  // ordenado así de getSightingsForAlerta) y los deja en el estado del card.
+  const loadSightings = useCallback(async (alertaId) => {
+    setLoadingSightings(true);
+    try {
+      const data = await getSightingsForAlerta(alertaId);
+      setSightings(data);
+    } finally {
+      setLoadingSightings(false);
+    }
+  }, []);
+
   const showCard = useCallback((pin) => {
     setSelectedPin(pin);
+    setSightings([]);
+    if (pin.type === 'lost') loadSightings(pin.id);
     Animated.spring(slideAnim, { toValue: 0, tension: 80, friction: 12, useNativeDriver: true }).start();
-  }, [slideAnim]);
+  }, [slideAnim, loadSightings]);
 
   const hideCard = useCallback(() => {
     Animated.timing(slideAnim, { toValue: 300, duration: 220, useNativeDriver: true }).start(
@@ -211,13 +273,14 @@ export default function MapScreen({ navigation }) {
       await createSighting(pin.id, myLoc.lat, myLoc.lng, `Visto cerca de ${pin.zone}`);
       setSightingSuccess(true);
       setTimeout(() => setSightingSuccess(false), 3000);
+      await loadSightings(pin.id); // refresca la lista — el nuevo avistamiento aparece al toque
       Alert.alert('✅ Avistamiento registrado', `¡Gracias! Tu reporte ayuda al dueño a encontrar a ${pin.name}.`);
     } catch (err) {
       Alert.alert('Error', 'No pudimos registrar el avistamiento. Intenta de nuevo.');
     } finally {
       setReportingSighting(false);
     }
-  }, [reportingSighting]);
+  }, [reportingSighting, loadSightings]);
 
   const lostCount = pins.filter(p => p.type === 'lost').length;
 
@@ -291,7 +354,15 @@ export default function MapScreen({ navigation }) {
       {/* ── Card de detalle slide-up ── */}
       {selectedPin && (
         <Animated.View style={[scr.cardSlot, { transform: [{ translateY: slideAnim }] }]}>
-          <PinCard pin={selectedPin} onClose={hideCard} onContact={handleContact} onLoVi={handleLoVi} reportingSighting={reportingSighting} />
+          <PinCard
+            pin={selectedPin}
+            onClose={hideCard}
+            onContact={handleContact}
+            onLoVi={handleLoVi}
+            reportingSighting={reportingSighting}
+            sightings={sightings}
+            loadingSightings={loadingSightings}
+          />
         </Animated.View>
       )}
 

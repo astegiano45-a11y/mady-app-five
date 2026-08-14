@@ -44,11 +44,27 @@ create table public.alertas (
   created_at   timestamptz default now()
 );
 
+-- Avistamientos (alguien reporta haber visto a una mascota perdida, "lo vi acá")
+-- NOTA: esta tabla ya existía en el proyecto de Supabase (creada a mano, no vía
+-- este schema.sql) pero sin política de RLS para insert, así que nadie podía
+-- reportar un avistamiento en la práctica. Se agrega acá para que el schema
+-- documente lo que realmente existe en la base.
+create table if not exists public.sightings (
+  id           uuid default gen_random_uuid() primary key,
+  alerta_id    uuid references public.alertas(id) on delete cascade not null,
+  user_id      uuid references public.profiles(id) on delete cascade not null,
+  lat          float not null,
+  lng          float not null,
+  description  text,
+  created_at   timestamptz default now()
+);
+
 -- ─── RLS (Row Level Security) ─────────────────────────────────────────────────
 
 alter table public.profiles  enable row level security;
 alter table public.mascotas  enable row level security;
 alter table public.alertas   enable row level security;
+alter table public.sightings enable row level security;
 
 -- Profiles: cada uno ve y edita solo el suyo
 create policy "Perfil propio" on public.profiles
@@ -65,6 +81,12 @@ create policy "Ver alertas" on public.alertas
   for select using (true);
 create policy "Gestionar alertas propias" on public.alertas
   for all using (auth.uid() = user_id);
+
+-- Avistamientos: todos ven, cualquier usuario autenticado reporta (a su nombre)
+create policy "Ver avistamientos" on public.sightings
+  for select using (true);
+create policy "Reportar avistamiento propio" on public.sightings
+  for insert with check (auth.uid() = user_id);
 
 -- ─── Trigger: crear perfil al registrarse ─────────────────────────────────────
 create or replace function public.handle_new_user()
