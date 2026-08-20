@@ -59,12 +59,45 @@ create table if not exists public.sightings (
   created_at   timestamptz default now()
 );
 
+-- Comunidad: posts, likes y comentarios
+-- NOTA: estas tres tablas ya existían en el proyecto de Supabase (creadas a mano,
+-- no vía este schema.sql) pero "posts" no tenía política de UPDATE, así que
+-- likes_count nunca se guardaba de verdad (el UPDATE fallaba en silencio por
+-- RLS). Se documentan acá para que el schema refleje lo que realmente existe.
+create table if not exists public.posts (
+  id           uuid default gen_random_uuid() primary key,
+  user_id      uuid references public.profiles(id) on delete cascade not null,
+  content      text not null,
+  photo_url    text,
+  category     text default 'general',
+  likes_count  integer default 0,
+  created_at   timestamptz default now()
+);
+
+create table if not exists public.post_likes (
+  user_id      uuid references public.profiles(id) on delete cascade not null,
+  post_id      uuid references public.posts(id) on delete cascade not null,
+  created_at   timestamptz default now(),
+  primary key (user_id, post_id)
+);
+
+create table if not exists public.post_comments (
+  id           uuid default gen_random_uuid() primary key,
+  post_id      uuid references public.posts(id) on delete cascade not null,
+  user_id      uuid references public.profiles(id) on delete cascade not null,
+  content      text not null,
+  created_at   timestamptz default now()
+);
+
 -- ─── RLS (Row Level Security) ─────────────────────────────────────────────────
 
-alter table public.profiles  enable row level security;
-alter table public.mascotas  enable row level security;
-alter table public.alertas   enable row level security;
-alter table public.sightings enable row level security;
+alter table public.profiles     enable row level security;
+alter table public.mascotas     enable row level security;
+alter table public.alertas      enable row level security;
+alter table public.sightings    enable row level security;
+alter table public.posts        enable row level security;
+alter table public.post_likes   enable row level security;
+alter table public.post_comments enable row level security;
 
 -- Profiles: cada uno ve y edita solo el suyo
 create policy "Perfil propio" on public.profiles
@@ -87,6 +120,56 @@ create policy "Ver avistamientos" on public.sightings
   for select using (true);
 create policy "Reportar avistamiento propio" on public.sightings
   for insert with check (auth.uid() = user_id);
+
+-- Posts: todos ven, solo el dueño crea/borra. A propósito NO hay policy de
+-- UPDATE: eso dejaría a cualquier usuario autenticado reescribir el contenido,
+-- la foto o el dueño de un post ajeno. El conteo de likes se actualiza en
+-- cambio a través de la función increment_post_likes() (más abajo), que corre
+-- con permisos de owner (SECURITY DEFINER) y solo toca esa columna.
+create policy "Ver posts" on public.posts
+  for select using (true);
+create policy "Crear posts" on public.posts
+  for insert with check (auth.uid() = user_id);
+create policy "Eliminar post propio" on public.posts
+  for delete using (auth.uid() = user_id);
+
+-- Likes: cada uno gestiona sus propios likes (dar/sacar like)
+create policy "Dar like" on public.post_likes
+  for all using (auth.uid() = user_id);
+create policy "Ver likes" on public.post_likes
+  for select using (true);
+
+-- Comentarios: todos ven, cualquier usuario autenticado comenta a su nombre,
+-- solo el autor borra el propio
+create policy "Ver comentarios" on public.post_comments
+  for select using (true);
+create policy "Comentar" on public.post_comments
+  for insert with check (auth.uid() = user_id);
+create policy "Borrar comentario propio" on public.post_comments
+  for delete using (auth.uid() = user_id);
+
+-- Incrementa/decrementa likes_count de forma atómica sin necesitar un UPDATE
+-- policy abierto sobre "posts". SECURITY DEFINER: corre con los permisos del
+-- owner de la función (bypassea RLS), pero solo expone esta operación acotada.
+create or replace function public.increment_post_likes(post_id uuid, delta int)
+returns int
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  new_count int;
+begin
+  update public.posts
+  set likes_count = greatest(0, coalesce(likes_count, 0) + delta)
+  where id = post_id
+  returning likes_count into new_count;
+  return new_count;
+end;
+$$;
+
+revoke all on function public.increment_post_likes(uuid, int) from public;
+grant execute on function public.increment_post_likes(uuid, int) to authenticated;
 
 -- ─── Trigger: crear perfil al registrarse ─────────────────────────────────────
 create or replace function public.handle_new_user()

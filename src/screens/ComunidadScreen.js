@@ -585,12 +585,22 @@ export default function ComunidadScreen() {
       ? { ...p, liked: !liked, likes_count: liked ? (p.likes_count||1) - 1 : (p.likes_count||0) + 1 }
       : p
     ));
+    // El conteo se actualiza con una función RPC (increment_post_likes) en vez de
+    // un UPDATE directo a "posts": la tabla no tiene (ni debe tener) policy de
+    // UPDATE abierta a cualquier usuario -eso dejaría editar contenido/foto de
+    // posts ajenos-, así que se expone solo el incremento/decremento atómico.
     if (liked) {
       await supabase.from('post_likes').delete().match({ user_id: userId, post_id: post.id });
-      await supabase.from('posts').update({ likes_count: Math.max(0, (post.likes_count||1) - 1) }).eq('id', post.id);
+      const { data: newCount, error } = await supabase.rpc('increment_post_likes', { post_id: post.id, delta: -1 });
+      if (!error && typeof newCount === 'number') {
+        setPosts(prev => prev.map(p => p.id === post.id ? { ...p, likes_count: newCount } : p));
+      }
     } else {
       await supabase.from('post_likes').insert({ user_id: userId, post_id: post.id });
-      await supabase.from('posts').update({ likes_count: (post.likes_count||0) + 1 }).eq('id', post.id);
+      const { data: newCount, error } = await supabase.rpc('increment_post_likes', { post_id: post.id, delta: 1 });
+      if (!error && typeof newCount === 'number') {
+        setPosts(prev => prev.map(p => p.id === post.id ? { ...p, likes_count: newCount } : p));
+      }
     }
   };
 
