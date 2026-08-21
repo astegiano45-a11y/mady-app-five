@@ -37,8 +37,26 @@ export default function AdopcionScreen({ navigation }) {
       }
 
       setUserId(user.id);
-      setHasProfile(true); // Fuerzo que siempre tenga perfil para testear Tinder
-      loadMascotas();
+
+      // Antes esto era `setHasProfile(true)` sin condición — cualquiera
+      // podía "Me gusta" sin haber respondido nunca el cuestionario de
+      // responsabilidad. Ahora se chequea que el perfil exista de verdad
+      // y tenga completas las preguntas obligatorias (mismo criterio que
+      // canSave en PerfilAdoptanteScreen).
+      const profile = await getAdoptantProfile(user.id);
+      const qa = profile?.questions_answers || {};
+      const complete = !!profile
+        && !!qa.reason
+        && !!qa.behaviorPlan
+        && qa.expenseAck === true
+        && typeof qa.hasExperience === 'boolean';
+
+      setHasProfile(complete);
+      if (complete) {
+        loadMascotas();
+      } else {
+        setLoading(false);
+      }
     } catch (err) {
       console.error('❌ checkProfileAndLoad error:', err);
       setLoading(false);
@@ -64,7 +82,11 @@ export default function AdopcionScreen({ navigation }) {
     if (!userId) return;
     try {
       await likeAdoption(userId, item.id, true);
-      Alert.alert('❤️ Me gusta', `${item.name} agregado a favoritos`);
+      // likeAdoption() solo escribe adoptant_liked — no aprueba nada por sí
+      // sola. El mensaje antes decía "agregado a favoritos", que sonaba a
+      // trámite terminado; ahora deja claro que queda pendiente de que el
+      // dueño la revise y decida.
+      Alert.alert('💌 Solicitud enviada', `Le avisamos al dueño de ${item.name}. Te va a contactar si aprueba tu solicitud.`);
       setTimeout(() => setCurrentIndex(currentIndex + 1), 500);
     } catch (err) {
       console.warn('handleSwipeRight error:', err);
