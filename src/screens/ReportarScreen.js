@@ -119,11 +119,18 @@ async function uploadFoto(uri, base64) {
 }
 
 // ── Paso 2: completar datos ───────────────────────────────────────────────────
-function StepDatos({ tipo, onBack, onSubmit, loading }) {
-  const [name,      setName]      = useState('');
+// initialPet: mascota ya registrada (viene de PerfilMascotaScreen.reportLost()).
+// Prellena nombre/descripción/foto en vez de forzar a reescribir todo de cero.
+function StepDatos({ tipo, onBack, onSubmit, loading, initialPet }) {
+  const [name,      setName]      = useState(initialPet?.name || '');
   const [zone,      setZone]      = useState('');
-  const [desc,      setDesc]      = useState('');
-  const [photo,     setPhoto]     = useState(null);   // { uri, base64 }
+  const [desc,      setDesc]      = useState(initialPet?.description || '');
+  // { uri, base64 } para una foto recién elegida, o { uri, existing: true }
+  // para la foto que la mascota ya tenía subida — existing evita resubirla
+  // como si fuera un archivo local nuevo.
+  const [photo,     setPhoto]     = useState(
+    initialPet?.photo_url ? { uri: initialPet.photo_url, existing: true } : null
+  );
 
   const [uploading, setUploading] = useState(false);
   const [error,     setError]     = useState('');
@@ -145,7 +152,9 @@ function StepDatos({ tipo, onBack, onSubmit, loading }) {
     if (!canSubmit) { setError('Completá el nombre y la zona.'); return; }
     setError('');
     let photoUrl = null;
-    if (photo) {
+    if (photo?.existing) {
+      photoUrl = photo.uri; // ya estaba subida (mascota registrada) — no resubir
+    } else if (photo) {
       setUploading(true);
       try { photoUrl = await uploadFoto(photo.uri, photo.base64); } catch (e) { console.log('upload err', e); }
       setUploading(false);
@@ -308,12 +317,18 @@ function StepConfirm({ tipo, name, zone, onReset, hasLocation }) {
 }
 
 // ── Pantalla principal ────────────────────────────────────────────────────────
-export default function ReportarScreen({ navigation }) {
+export default function ReportarScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
   const { currentUser } = useAuth();
 
-  const [paso,     setPaso]     = useState(1);  // 1=tipo, 2=datos, 3=confirm
-  const [tipo,     setTipo]     = useState(null);
+  // Viene de PerfilMascotaScreen.reportLost() con una mascota ya registrada.
+  // Hoy es el único caller que manda { pet }, siempre implica tipo "lost" —
+  // por eso arrancamos directo en el paso 2 con ese tipo ya elegido, en vez
+  // de forzar a elegir "¿Qué necesitás reportar?" de nuevo.
+  const petParam = route?.params?.pet || null;
+
+  const [paso,     setPaso]     = useState(petParam ? 2 : 1);  // 1=tipo, 2=datos, 3=confirm
+  const [tipo,     setTipo]     = useState(petParam ? TIPOS.find(t => t.id === 'lost') : null);
   const [result,   setResult]   = useState(null);
   const [loading,  setLoading]  = useState(false);
   const [hasLocation, setHasLocation] = useState(false); // ¿la alerta quedó geolocalizada?
@@ -336,6 +351,7 @@ export default function ReportarScreen({ navigation }) {
         ...datos,
         lat: coords?.lat ?? null,
         lng: coords?.lng ?? null,
+        mascota_id: petParam?.id ?? null,
       });
       setHasLocation(!!coords);
 
@@ -417,6 +433,7 @@ export default function ReportarScreen({ navigation }) {
               onBack={() => setPaso(1)}
               onSubmit={handleSubmit}
               loading={loading}
+              initialPet={petParam}
             />
           )}
           {paso === 3 && tipo && result && (
