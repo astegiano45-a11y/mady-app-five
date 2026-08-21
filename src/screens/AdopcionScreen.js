@@ -18,6 +18,11 @@ export default function AdopcionScreen({ navigation }) {
   const [mascotas, setMascotas] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [userId, setUserId] = useState(null);
+  // Antes solo se caía al placeholder 🏠 si photo_url venía null — un link
+  // roto (foto borrada del hosting) se intentaba cargar igual y quedaba en
+  // blanco, sin ningún aviso. onError en el <Image> de abajo lo detecta.
+  const [imgFailed, setImgFailed] = useState(false);
+  useEffect(() => { setImgFailed(false); }, [currentIndex]);
 
   useEffect(() => {
     checkProfileAndLoad();
@@ -199,8 +204,13 @@ export default function AdopcionScreen({ navigation }) {
       >
         {currentPet && (
           <View style={[st.petCard, isDesktop && st.petCardDesktop]}>
-            {currentPet.photo_url ? (
-              <Image source={{ uri: currentPet.photo_url }} style={st.petPhoto} resizeMode="cover" />
+            {currentPet.photo_url && !imgFailed ? (
+              <Image
+                source={{ uri: currentPet.photo_url }}
+                style={st.petPhoto}
+                resizeMode="cover"
+                onError={() => setImgFailed(true)}
+              />
             ) : (
               <View style={[st.petPhoto, st.petPhotoPlaceholder]}>
                 <Text style={{ fontSize: 80 }}>🏠</Text>

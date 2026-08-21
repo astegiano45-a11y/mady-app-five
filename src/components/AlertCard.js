@@ -36,9 +36,13 @@ const STRIP_H = CARD_H - PHOTO_H;             // 69px
 export default function AlertCard({ item, onPress, width = CARD_W }) {
   const scale = useRef(new Animated.Value(1)).current;
   const [liked, setLiked] = useState(false);
+  // Antes solo caía al placeholder si photo_url venía null/vacío — un link
+  // roto (foto borrada del hosting, etc.) se intentaba cargar igual y
+  // quedaba en blanco. onError abajo detecta la falla real de carga.
+  const [imgFailed, setImgFailed] = useState(false);
 
   const type  = TYPE[item.type] || TYPE.lost;
-  const photo = item.photo
+  const photo = (item.photo && !imgFailed)
     ? (typeof item.photo === 'string' ? { uri: item.photo } : item.photo)
     : { uri: PLACEHOLDER[item.type] || PLACEHOLDER.lost };
 
@@ -51,7 +55,12 @@ export default function AlertCard({ item, onPress, width = CARD_W }) {
 
         {/* ── FOTO 70 % ────────────────────────────────────────────────────── */}
         <View style={[s.imgWrap, { height: PHOTO_H }]}>
-          <Image source={photo} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
+          <Image
+            source={photo}
+            style={StyleSheet.absoluteFillObject}
+            resizeMode="cover"
+            onError={() => setImgFailed(true)}
+          />
 
           {/* Degradé sobre la foto — negro → transparente desde abajo */}
           <LinearGradient
