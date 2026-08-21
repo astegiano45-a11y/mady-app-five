@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
-  TouchableOpacity, Modal, TextInput, KeyboardAvoidingView, Platform, Image,
+  TouchableOpacity, Modal, TextInput, KeyboardAvoidingView, Platform, Image, Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
@@ -69,7 +69,11 @@ export default function PerfilMascotaScreen({ navigation, route }) {
   const [editBreed, setEditBreed] = useState(petParam?.breed   || '');
   const [editAge,   setEditAge]   = useState(petParam?.age     || '');
   const [editColor, setEditColor] = useState(petParam?.color   || '');
-  const [editNotes, setEditNotes] = useState(petParam?.notes   || '');
+  // Usa "description" — la misma columna que ya llena AgregarMascotaScreen al
+  // crear la mascota. Antes esto se llamaba editNotes y se guardaba como
+  // "notes", una columna que nunca existió en la tabla mascotas: cada intento
+  // de editar fallaba en silencio (ver diagnóstico #1/#4 de la auditoría).
+  const [editDescription, setEditDescription] = useState(petParam?.description || '');
   const [editPhoto, setEditPhoto] = useState(null); // nueva foto seleccionada
 
   if (!pet) {
@@ -83,13 +87,33 @@ export default function PerfilMascotaScreen({ navigation, route }) {
 
   const st = STATUS_MAP[status];
 
-  const reportLost = () => {
-    setStatus('lost');
+  // Antes reportLost/markFound solo hacían setStatus(...) — cambiaban lo que
+  // se veía en esta pantalla mientras seguía montada, pero nunca llegaban a
+  // Supabase. Al volver a entrar al perfil (fetch nuevo), el status guardado
+  // seguía siendo el viejo. Ahora persisten primero y solo actualizan la UI
+  // si el guardado confirma éxito.
+  const reportLost = async () => {
+    if (!pet.id) { setStatus('lost'); navigation.navigate('Reportar', { pet }); return; }
+    try {
+      const updated = await actualizarMascota(pet.id, { status: 'lost' });
+      setPet(prev => ({ ...prev, ...updated }));
+      setStatus(updated.status);
+    } catch {
+      Alert.alert('No se pudo actualizar', 'Revisá tu conexión e intentá de nuevo.');
+      return;
+    }
     navigation.navigate('Reportar', { pet });
   };
 
-  const markFound = () => {
-    setStatus('home');
+  const markFound = async () => {
+    if (!pet.id) { setStatus('home'); return; }
+    try {
+      const updated = await actualizarMascota(pet.id, { status: 'home' });
+      setPet(prev => ({ ...prev, ...updated }));
+      setStatus(updated.status);
+    } catch {
+      Alert.alert('No se pudo actualizar', 'Revisá tu conexión e intentá de nuevo.');
+    }
   };
 
   const pickEditPhoto = async () => {
@@ -111,17 +135,22 @@ export default function PerfilMascotaScreen({ navigation, route }) {
         try { photoUrl = await subirFotoMascota(pet.id, editPhoto.uri, `foto_${Date.now()}.jpg`); } catch {}
       }
       const updated = await actualizarMascota(pet.id, {
-        name:      editName,
-        breed:     editBreed,
-        age:       editAge,
-        color:     editColor,
-        notes:     editNotes,
-        photo_url: photoUrl,
+        name:        editName,
+        breed:       editBreed,
+        age:         editAge,
+        color:       editColor,
+        description: editDescription,
+        photo_url:   photoUrl,
       });
       setPet(prev => ({ ...prev, ...updated }));
       setEditPhoto(null);
       setShowEdit(false);
-    } catch {}
+    } catch {
+      // Antes este catch estaba vacío: si el guardado fallaba (p.ej. una
+      // columna inexistente), el modal se quedaba abierto sin ningún aviso —
+      // parecía que el botón "Guardar" simplemente no hacía nada.
+      Alert.alert('No se pudo guardar', 'Revisá tu conexión e intentá de nuevo.');
+    }
     setSaving(false);
   };
 
@@ -187,13 +216,13 @@ export default function PerfilMascotaScreen({ navigation, route }) {
             <Field label="Edad"    value={editAge}   onChange={setEditAge}   />
             <Field label="Color"   value={editColor} onChange={setEditColor} />
             <View style={styles.field}>
-              <Text style={styles.fieldLabel}>Notas</Text>
+              <Text style={styles.fieldLabel}>Descripción</Text>
               <TextInput
                 style={[styles.fieldInput, { height: 90, textAlignVertical: 'top' }]}
-                value={editNotes}
-                onChangeText={setEditNotes}
+                value={editDescription}
+                onChangeText={setEditDescription}
                 multiline
-                placeholder="Notas adicionales"
+                placeholder="Señas particulares, comportamiento, notas..."
                 placeholderTextColor={COLORS.textMuted}
               />
             </View>
@@ -259,9 +288,9 @@ export default function PerfilMascotaScreen({ navigation, route }) {
           )}
         </Section>
 
-        {pet.notes ? (
-          <Section title="📝 Notas">
-            <Text style={styles.notes}>{pet.notes}</Text>
+        {pet.description ? (
+          <Section title="📝 Descripción">
+            <Text style={styles.notes}>{pet.description}</Text>
           </Section>
         ) : null}
 
