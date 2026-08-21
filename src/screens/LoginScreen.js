@@ -389,6 +389,10 @@ export default function LoginScreen({ navigation }) {
   );
 
   // ── Cuentas de prueba (dev) — compartida entre layouts ──────────────────────
+  // Antes se renderizaba sin ningún gate: cualquiera que abriera la app en
+  // producción veía estas credenciales reales y podía loguearse con ellas.
+  // Se envuelve en __DEV__ (false en un build de producción, p.ej.
+  // `expo export --platform web`) en los dos lugares donde se usa más abajo.
   const devSection = (
     <View style={s.devSection} accessible={false}>
       <Text style={s.devLabel}>🧪 Cuentas de prueba</Text>
@@ -456,7 +460,7 @@ export default function LoginScreen({ navigation }) {
           showsVerticalScrollIndicator={false}
         >
           {formCard}
-          {devSection}
+          {__DEV__ && devSection}
         </ScrollView>
       </View>
     );
@@ -498,7 +502,7 @@ export default function LoginScreen({ navigation }) {
         </Animated.View>
 
         {formCard}
-        {devSection}
+        {__DEV__ && devSection}
 
       </ScrollView>
     </KeyboardAvoidingView>
