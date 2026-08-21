@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
-  TouchableOpacity, Image, ActivityIndicator, Platform, Modal,
+  TouchableOpacity, Image, ActivityIndicator, Platform, Modal, Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -15,8 +15,24 @@ import { R, S } from '../theme/spacing';
 import { T } from '../theme/typography';
 import { useAuth } from '../context/AuthContext';
 import { getMisMascotas, eliminarMascota } from '../services/mascotasService';
-import { getAlertasMias } from '../services/alertasService';
+import { getAlertasMias, resolverAlerta } from '../services/alertasService';
 import { supabase } from '../lib/supabase';
+
+// Antes "Mis reportes" navegaba directo a crear una alerta nueva — nunca
+// mostraba las que ya tenías. Este mapa es el mismo criterio de colores que
+// ya usa NotificacionesScreen para el tipo de alerta.
+const REPORT_TYPE = {
+  lost:     { label: 'Perdido',    color: C.lost,  bg: C.lostBg },
+  found:    { label: 'Encontrado', color: C.found, bg: C.foundBg },
+  adoption: { label: 'Adopción',   color: C.teal,  bg: C.tealLight },
+};
+
+function formatTimeAgo(iso) {
+  const diff = Math.floor((Date.now() - new Date(iso)) / 60000);
+  if (diff < 60)   return `hace ${diff} min`;
+  if (diff < 1440) return `hace ${Math.floor(diff / 60)} h`;
+  return `hace ${Math.floor(diff / 1440)} días`;
+}
 
 async function uploadAvatar(uri, base64, userId) {
   const path = `avatars/${userId}.jpg`;
@@ -61,8 +77,10 @@ export default function PerfilUsuarioScreen({ navigation }) {
   const [avatar,        setAvatar]        = useState(currentUser?.user_metadata?.avatar_url || null);
   const [uploading,     setUploading]     = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null);
-  const [activeModal,   setActiveModal]   = useState(null); // 'notif' | 'zona' | 'privacidad'
+  const [activeModal,   setActiveModal]   = useState(null); // 'notif' | 'zona' | 'privacidad' | 'reportes'
   const [notifOn,       setNotifOn]       = useState(true);
+  const [confirmResolve, setConfirmResolve] = useState(null); // alerta a confirmar como resuelta
+  const [resolvingId,    setResolvingId]    = useState(null); // id de la alerta resolviéndose ahora
 
   useEffect(() => {
     getMisMascotas().then(setMascotas).catch(() => {});
@@ -101,6 +119,23 @@ export default function PerfilUsuarioScreen({ navigation }) {
     setConfirmDelete(null);
   };
 
+  // resolverAlerta() ya existía en alertasService.js pero nada la llamaba —
+  // las alertas quedaban "active" para siempre. Actualiza local solo si el
+  // UPDATE en Supabase confirma éxito.
+  const handleResolverAlerta = async () => {
+    if (!confirmResolve) return;
+    const id = confirmResolve.id;
+    setConfirmResolve(null);
+    setResolvingId(id);
+    try {
+      await resolverAlerta(id);
+      setAlertasMias(prev => prev.map(a => a.id === id ? { ...a, status: 'resolved' } : a));
+    } catch {
+      Alert.alert('No se pudo actualizar', 'Revisá tu conexión e intentá de nuevo.');
+    }
+    setResolvingId(null);
+  };
+
   const initials = name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
 
   return (
@@ -117,6 +152,84 @@ export default function PerfilUsuarioScreen({ navigation }) {
             </TouchableOpacity>
             <TouchableOpacity style={s.modalConfirm} onPress={handleEliminarMascota}>
               <Text style={s.modalConfirmTxt}>Eliminar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </TouchableOpacity>
+    </Modal>
+
+    {/* Modal Mis reportes */}
+    <Modal visible={activeModal === 'reportes'} transparent animationType="slide" onRequestClose={() => setActiveModal(null)}>
+      <View style={s.sheetBackdrop}>
+        <View style={[s.sheet, { maxHeight: '80%' }]}>
+          <View style={s.sheetHandle} />
+          <Text style={s.sheetTitle}>Mis reportes</Text>
+
+          {alertasMias.length === 0 ? (
+            <View style={{ alignItems: 'center', paddingVertical: S[24], gap: 8 }}>
+              <Text style={{ fontSize: 32 }}>📋</Text>
+              <Text style={s.sheetRowSub}>Todavía no reportaste ninguna alerta.</Text>
+            </View>
+          ) : (
+            <ScrollView style={{ maxHeight: 380 }} showsVerticalScrollIndicator={false}>
+              {alertasMias.map(a => {
+                const t = REPORT_TYPE[a.type] || REPORT_TYPE.lost;
+                const resolved = a.status === 'resolved';
+                return (
+                  <View key={a.id} style={s.reportRow}>
+                    <View style={{ flex: 1 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <Text style={s.reportName}>{a.name}</Text>
+                        <View style={[s.reportBadge, { backgroundColor: t.bg }]}>
+                          <Text style={[s.reportBadgeTxt, { color: t.color }]}>{t.label}</Text>
+                        </View>
+                      </View>
+                      <Text style={s.reportMeta}>{a.zone} · {formatTimeAgo(a.created_at)}</Text>
+                    </View>
+                    {resolved ? (
+                      <View style={s.reportResolvedPill}>
+                        <Text style={s.reportResolvedTxt}>✅ Resuelta</Text>
+                      </View>
+                    ) : resolvingId === a.id ? (
+                      <ActivityIndicator size="small" color={C.teal} />
+                    ) : (
+                      <TouchableOpacity style={s.reportResolveBtn} onPress={() => setConfirmResolve(a)}>
+                        <Text style={s.reportResolveTxt}>Marcar resuelta</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                );
+              })}
+            </ScrollView>
+          )}
+
+          <TouchableOpacity
+            style={[s.sheetClose, { marginTop: S[16] }]}
+            onPress={() => { setActiveModal(null); navigation.navigate('Reportar'); }}
+          >
+            <Text style={s.sheetCloseTxt}>+ Nuevo reporte</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+
+    {/* Modal confirmar resolver alerta — declarado DESPUÉS del modal "Mis
+        reportes" a propósito: en React Native Web cada <Modal> inserta su
+        nodo en el DOM en el orden en que aparece en el árbol (no quién se
+        volvió visible más tarde), así que si este confirm quedaba declarado
+        antes, el modal de "Mis reportes" -que ya estaba montado- lo tapaba
+        por completo aunque el texto sí estuviera en el DOM. */}
+    <Modal visible={!!confirmResolve} transparent animationType="fade" onRequestClose={() => setConfirmResolve(null)}>
+      <TouchableOpacity style={s.modalBackdrop} activeOpacity={1} onPress={() => setConfirmResolve(null)}>
+        <View style={s.modalBox}>
+          <Text style={s.modalTitle}>¿Confirmás que {confirmResolve?.name} ya se resolvió?</Text>
+          <Text style={s.modalSub}>Va a dejar de aparecer como alerta activa en el mapa y en "Cerca de ti".</Text>
+          <View style={s.modalBtns}>
+            <TouchableOpacity style={s.modalCancel} onPress={() => setConfirmResolve(null)}>
+              <Text style={s.modalCancelTxt}>Cancelar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[s.modalConfirm, { backgroundColor: C.teal }]} onPress={handleResolverAlerta}>
+              <Text style={s.modalConfirmTxt}>Sí, resolver</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -308,7 +421,7 @@ export default function PerfilUsuarioScreen({ navigation }) {
           <View style={s.menuDivider} />
           <MenuRow icon={Shield}        label="Privacidad"                               onPress={() => setActiveModal('privacidad')} color={C.coral} />
           <View style={s.menuDivider} />
-          <MenuRow icon={Heart}         label="Mis reportes"                             onPress={() => navigation.navigate('Reportar')} color={C.found} />
+          <MenuRow icon={Heart}         label="Mis reportes"       value={`${alertasMias.length}`} onPress={() => setActiveModal('reportes')} color={C.found} />
         </View>
       </View>
 
@@ -421,4 +534,18 @@ const s = StyleSheet.create({
   toggleOn:       { backgroundColor: C.teal },
   toggleThumb:    { width: 24, height: 24, borderRadius: 12, backgroundColor: C.white, alignSelf: 'flex-start' },
   toggleThumbOn:  { alignSelf: 'flex-end' },
+
+  // Mis reportes
+  reportRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingVertical: S[12], borderBottomWidth: 1, borderBottomColor: C.borderLight,
+  },
+  reportName:   { fontSize: T.base, fontWeight: '700', color: C.ink },
+  reportBadge:  { paddingHorizontal: 8, paddingVertical: 2, borderRadius: R.full },
+  reportBadgeTxt: { fontSize: 10, fontWeight: '700' },
+  reportMeta:   { fontSize: T.xs, color: C.inkLight, marginTop: 2 },
+  reportResolveBtn: { backgroundColor: C.teal, paddingHorizontal: 12, paddingVertical: 8, borderRadius: R.full },
+  reportResolveTxt: { fontSize: T.xs, fontWeight: '700', color: C.white },
+  reportResolvedPill: { backgroundColor: C.foundBg, paddingHorizontal: 10, paddingVertical: 6, borderRadius: R.full },
+  reportResolvedTxt:  { fontSize: T.xs, fontWeight: '700', color: C.found },
 });
