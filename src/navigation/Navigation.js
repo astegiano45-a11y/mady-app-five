@@ -31,6 +31,7 @@ import AdopcionScreen         from '../screens/AdopcionScreen';
 import PerfilAdoptanteScreen  from '../screens/PerfilAdoptanteScreen';
 import MisFavoritosScreen     from '../screens/MisFavoritosScreen';
 import NotificacionesScreen   from '../screens/NotificacionesScreen';
+import MascotaDetalleScreen   from '../screens/MascotaDetalleScreen';
 
 import { COLORS, FONTS, RADIUS, SHADOW, SPACING } from '../theme';
 import BottomNavigation from '../components/BottomNavigation';
@@ -320,6 +321,11 @@ function AppStack() {
       <Stack.Screen
         name="Notificaciones"
         component={NotificacionesScreen}
+        options={{ animation: 'slide_from_right' }}
+      />
+      <Stack.Screen
+        name="MascotaDetalle"
+        component={MascotaDetalleScreen}
         options={{ animation: 'slide_from_right' }}
       />
     </Stack.Navigator>

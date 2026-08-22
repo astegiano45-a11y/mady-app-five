@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, Pressable, ScrollView, Image,
-  ActivityIndicator, Animated, Alert, Platform,
+  ActivityIndicator, Animated, Alert, Platform, Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import LeafletMap from '../components/LeafletMap';
@@ -210,6 +210,7 @@ export default function MapScreen({ navigation }) {
               lng: coords.lng,
               exactLocation: hasRealCoords,
               zone: a.zone, time, photo: a.photo_url,
+              user_id: a.user_id, // quién reportó — necesario para "Lo vi — Contactar"
             };
           });
           setPins(realPins);
@@ -255,16 +256,45 @@ export default function MapScreen({ navigation }) {
     );
   }, [slideAnim]);
 
-  // El contacto directo (mensajería in-app) todavía no existe: no hay tabla de
-  // conversaciones/mensajes ni pantalla de chat en el proyecto. Antes esto abría
-  // un segundo modal ("Enviar mensaje"/"Cerrar") cuyo botón no hacía nada — un
-  // callejón sin salida disfrazado de función real. Se reemplaza por un aviso
-  // honesto hasta que la mensajería se construya (ver nota en el informe).
-  const handleContact = useCallback((pin) => {
-    Alert.alert(
-      'Función en desarrollo',
-      `El contacto directo con el dueño todavía no está disponible — lo estamos construyendo.${pin.type === 'lost' ? '\n\nMientras tanto, usá "Lo vi aquí" para avisar que viste a ' + pin.name + '.' : ''}`
-    );
+  // Contacto real: el teléfono vive en profiles.phone, pero la única política
+  // RLS de "profiles" es "auth.uid() = id" — nadie puede leer el perfil de
+  // otro usuario directo. get_alerta_contact() es una función security
+  // definer (ver supabase/contacto_alertas.sql) que expone solo name+phone
+  // de quien reportó esa alerta puntual, sin abrir el resto de su perfil.
+  const handleContact = useCallback(async (pin) => {
+    if (!pin.user_id) {
+      Alert.alert('Contacto no disponible', 'No pudimos encontrar el contacto de quien reportó esta mascota.');
+      return;
+    }
+    try {
+      const { supabase } = require('../lib/supabase');
+      const { data, error } = await supabase
+        .rpc('get_alerta_contact', { alerta_id: pin.id })
+        .single();
+
+      const phone = data?.phone?.trim();
+      if (error || !phone) {
+        Alert.alert(
+          'Sin teléfono de contacto',
+          `${data?.name ? `${data.name} (quien reportó a ${pin.name})` : `Quien reportó a ${pin.name}`} no cargó un teléfono de contacto todavía.`
+        );
+        return;
+      }
+
+      // wa.me solo acepta dígitos (sin +, espacios ni guiones)
+      const digits = phone.replace(/\D/g, '');
+      Alert.alert(
+        `Contactar sobre ${pin.name}`,
+        `Teléfono: ${phone}`,
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          { text: '📱 WhatsApp', onPress: () => Linking.openURL(`https://wa.me/${digits}`) },
+          { text: '📞 Llamar', onPress: () => Linking.openURL(`tel:${phone}`) },
+        ]
+      );
+    } catch (e) {
+      Alert.alert('Error', 'No pudimos obtener el contacto. Intentá de nuevo.');
+    }
   }, []);
 
   const handleLoVi = useCallback(async (pin) => {

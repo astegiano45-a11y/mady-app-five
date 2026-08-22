@@ -2,13 +2,14 @@ import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
   TouchableOpacity, Image, ActivityIndicator, Platform, Modal, Alert,
+  TextInput, KeyboardAvoidingView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import {
   LogOut, ChevronRight, Shield, Bell, MapPin,
-  Camera, Dog, Heart, AlertTriangle,
+  Camera, Dog, Heart, AlertTriangle, Phone,
 } from 'lucide-react-native';
 import { C } from '../theme/colors';
 import { R, S } from '../theme/spacing';
@@ -94,12 +95,46 @@ export default function PerfilUsuarioScreen({ navigation }) {
   const [resolvingId,    setResolvingId]    = useState(null); // id de la alerta resolviéndose ahora
   const [solicitudes,    setSolicitudes]    = useState([]); // solicitudes de adopción pendientes sobre mis mascotas
   const [respondingId,   setRespondingId]   = useState(null); // match_id respondiéndose ahora
+  const [phone,          setPhone]          = useState(null); // teléfono guardado en profiles.phone
+  const [phoneInput,     setPhoneInput]     = useState('');   // valor en edición dentro del modal
+  const [phoneError,     setPhoneError]     = useState('');
+  const [savingPhone,    setSavingPhone]    = useState(false);
 
   useEffect(() => {
     getMisMascotas().then(setMascotas).catch(() => {});
     getAlertasMias().then(setAlertasMias).catch(() => {});
     getPendingAdoptionRequests().then(setSolicitudes).catch(() => {});
   }, []);
+
+  // profiles.phone es la fuente real que usa get_alerta_contact() (botón
+  // "Lo vi — Contactar" del mapa) — no currentUser.user_metadata.phone,
+  // que solo refleja lo que se cargó al registrarse y puede quedar viejo.
+  useEffect(() => {
+    if (!userId) return;
+    supabase.from('profiles').select('phone').eq('id', userId).single()
+      .then(({ data }) => { if (data?.phone) { setPhone(data.phone); setPhoneInput(data.phone); } })
+      .catch(() => {});
+  }, [userId]);
+
+  const handleSavePhone = async () => {
+    const trimmed = phoneInput.trim();
+    if (trimmed && !/^\+?[\d\s\-()]{7,}$/.test(trimmed)) {
+      setPhoneError('Formato de teléfono inválido.');
+      return;
+    }
+    setPhoneError('');
+    setSavingPhone(true);
+    try {
+      const { error } = await supabase.from('profiles').update({ phone: trimmed || null }).eq('id', userId);
+      if (error) throw error;
+      setPhone(trimmed || null);
+      setActiveModal(null);
+    } catch {
+      Alert.alert('No se pudo guardar', 'Revisá tu conexión e intentá de nuevo.');
+    } finally {
+      setSavingPhone(false);
+    }
+  };
 
   const pickAvatar = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -394,6 +429,42 @@ export default function PerfilUsuarioScreen({ navigation }) {
       </View>
     </Modal>
 
+    {/* Modal Teléfono de contacto — quien vea/reporte tus mascotas lo usa
+        para llamarte o escribirte por WhatsApp (ver MapScreen "Lo vi —
+        Contactar"). Es el primer modal de este screen con un TextInput,
+        por eso lleva KeyboardAvoidingView (los demás son solo botones/toggles). */}
+    <Modal visible={activeModal === 'telefono'} transparent animationType="slide" onRequestClose={() => setActiveModal(null)}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={s.sheetBackdrop}>
+        <View style={s.sheet}>
+          <View style={s.sheetHandle} />
+          <Text style={s.sheetTitle}>Teléfono de contacto</Text>
+          <Text style={[s.sheetRowSub, { marginBottom: S[16] }]}>
+            Lo ve quien reporte o consulte por tus mascotas, para poder llamarte o escribirte por WhatsApp.
+          </Text>
+          <TextInput
+            style={s.phoneInput}
+            placeholder="Ej: +54 9 2964 123456"
+            placeholderTextColor={C.inkMuted}
+            value={phoneInput}
+            onChangeText={setPhoneInput}
+            keyboardType="phone-pad"
+            maxLength={20}
+          />
+          {phoneError ? <Text style={s.phoneError}>{phoneError}</Text> : null}
+          <TouchableOpacity
+            style={[s.sheetClose, savingPhone && { opacity: 0.6 }]}
+            onPress={handleSavePhone}
+            disabled={savingPhone}
+          >
+            {savingPhone
+              ? <ActivityIndicator color={C.white} />
+              : <Text style={s.sheetCloseTxt}>Guardar</Text>
+            }
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+
     {/* Modal Privacidad */}
     <Modal visible={activeModal === 'privacidad'} transparent animationType="slide" onRequestClose={() => setActiveModal(null)}>
       <View style={s.sheetBackdrop}>
@@ -517,6 +588,14 @@ export default function PerfilUsuarioScreen({ navigation }) {
       <View style={s.section}>
         <Text style={s.sectionTitle}>Cuenta</Text>
         <View style={s.menuCard}>
+          <MenuRow
+            icon={Phone}
+            label="Teléfono de contacto"
+            value={phone || 'Sin cargar — tocá para agregar'}
+            onPress={() => { setPhoneInput(phone || ''); setPhoneError(''); setActiveModal('telefono'); }}
+            color={C.coral}
+          />
+          <View style={s.menuDivider} />
           <MenuRow icon={Bell}          label="Notificaciones"  value={notifOn ? 'Activadas' : 'Desactivadas'} onPress={() => setActiveModal('notif')} color={C.teal}  />
           <View style={s.menuDivider} />
           <MenuRow icon={MapPin}        label="Mi zona"         value="Río Grande"       onPress={() => setActiveModal('zona')} color={C.teal}  />
@@ -638,6 +717,13 @@ const s = StyleSheet.create({
   sheetRowSub:    { fontSize: T.sm, color: C.inkLight, marginTop: 2, lineHeight: 20 },
   sheetClose:     { marginTop: S[20], backgroundColor: C.teal, borderRadius: R.xl, paddingVertical: 14, alignItems: 'center' },
   sheetCloseTxt:  { fontSize: T.base, fontWeight: '700', color: C.white },
+
+  // Teléfono de contacto
+  phoneInput: {
+    backgroundColor: C.cloud, borderRadius: R.xl, borderWidth: 1.5, borderColor: C.border,
+    paddingHorizontal: S[16], paddingVertical: 13, fontSize: T.base, color: C.ink,
+  },
+  phoneError: { fontSize: T.xs, color: C.lost, marginTop: 6 },
 
   // Toggle switch
   toggle:         { width: 48, height: 28, borderRadius: 14, backgroundColor: C.border, padding: 2, justifyContent: 'center' },

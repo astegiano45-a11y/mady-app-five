@@ -90,7 +90,11 @@ export default function MisFavoritosScreen({ navigation }) {
           contentContainerStyle={[st.list, isDesktop && st.listDesktop]}
           showsVerticalScrollIndicator={false}
           renderItem={({ item }) => (
-            <View style={st.card}>
+            <TouchableOpacity
+              style={st.card}
+              activeOpacity={0.9}
+              onPress={() => navigation.navigate('MascotaDetalle', { id: item.id })}
+            >
               {item.photo_url ? (
                 <Image source={{ uri: item.photo_url }} style={st.photo} resizeMode="cover" />
               ) : (
@@ -101,11 +105,14 @@ export default function MisFavoritosScreen({ navigation }) {
               <View style={st.info}>
                 <Text style={st.name}>{item.name}</Text>
                 <Text style={st.zone}>{item.zone}</Text>
-                <TouchableOpacity style={st.viewBtn}>
+                <TouchableOpacity
+                  style={st.viewBtn}
+                  onPress={() => navigation.navigate('MascotaDetalle', { id: item.id })}
+                >
                   <Text style={st.viewBtnTxt}>Ver detalles</Text>
                 </TouchableOpacity>
               </View>
-            </View>
+            </TouchableOpacity>
           )}
         />
       )}
