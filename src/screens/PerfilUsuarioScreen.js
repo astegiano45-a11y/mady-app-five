@@ -16,6 +16,7 @@ import { T } from '../theme/typography';
 import { useAuth } from '../context/AuthContext';
 import { getMisMascotas, eliminarMascota } from '../services/mascotasService';
 import { getAlertasMias, resolverAlerta } from '../services/alertasService';
+import { getPendingAdoptionRequests, respondAdoptionMatch } from '../services/adoptantService';
 import { supabase } from '../lib/supabase';
 
 // Antes "Mis reportes" navegaba directo a crear una alerta nueva — nunca
@@ -32,6 +33,16 @@ function formatTimeAgo(iso) {
   if (diff < 60)   return `hace ${diff} min`;
   if (diff < 1440) return `hace ${Math.floor(diff / 60)} h`;
   return `hace ${Math.floor(diff / 1440)} días`;
+}
+
+// Resumen rápido de cuánta preparación real tiene el adoptante, a partir de
+// las respuestas del cuestionario nuevo — para que el dueño no tenga que leer
+// las 2 respuestas de texto libre de cada solicitud para decidir a cuáles
+// prestarles atención primero.
+function semaforoSolicitud(qa) {
+  if (qa?.hasExperience) return { emoji: '🟢', label: 'Con experiencia' };
+  if (qa?.willingToLearn) return { emoji: '🟡', label: 'Sin experiencia, dispuesto/a a informarse' };
+  return { emoji: '🔴', label: 'Sin experiencia' };
 }
 
 async function uploadAvatar(uri, base64, userId) {
@@ -81,10 +92,13 @@ export default function PerfilUsuarioScreen({ navigation }) {
   const [notifOn,       setNotifOn]       = useState(true);
   const [confirmResolve, setConfirmResolve] = useState(null); // alerta a confirmar como resuelta
   const [resolvingId,    setResolvingId]    = useState(null); // id de la alerta resolviéndose ahora
+  const [solicitudes,    setSolicitudes]    = useState([]); // solicitudes de adopción pendientes sobre mis mascotas
+  const [respondingId,   setRespondingId]   = useState(null); // match_id respondiéndose ahora
 
   useEffect(() => {
     getMisMascotas().then(setMascotas).catch(() => {});
     getAlertasMias().then(setAlertasMias).catch(() => {});
+    getPendingAdoptionRequests().then(setSolicitudes).catch(() => {});
   }, []);
 
   const pickAvatar = async () => {
@@ -134,6 +148,21 @@ export default function PerfilUsuarioScreen({ navigation }) {
       Alert.alert('No se pudo actualizar', 'Revisá tu conexión e intentá de nuevo.');
     }
     setResolvingId(null);
+  };
+
+  // Aprobar/rechazar una solicitud de adopción. respondAdoptionMatch() llama
+  // a la RPC respond_adoption_match(), que verifica del lado del servidor
+  // que quien llama sea el dueño de la alerta antes de tocar owner_liked —
+  // acá no hace falta (ni conviene) un UPDATE directo a adoption_matches.
+  const handleResponderSolicitud = async (matchId, approve) => {
+    setRespondingId(matchId);
+    try {
+      await respondAdoptionMatch(matchId, approve);
+      setSolicitudes(prev => prev.filter(r => r.match_id !== matchId));
+    } catch {
+      Alert.alert('No se pudo actualizar', 'Revisá tu conexión e intentá de nuevo.');
+    }
+    setRespondingId(null);
   };
 
   const initials = name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
@@ -208,6 +237,79 @@ export default function PerfilUsuarioScreen({ navigation }) {
             onPress={() => { setActiveModal(null); navigation.navigate('Reportar'); }}
           >
             <Text style={s.sheetCloseTxt}>+ Nuevo reporte</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+
+    {/* Modal Solicitudes de adopción — dueño aprueba/rechaza. Sin modal de
+        confirmación extra: el par de botones ya es la decisión deliberada. */}
+    <Modal visible={activeModal === 'solicitudes'} transparent animationType="slide" onRequestClose={() => setActiveModal(null)}>
+      <View style={s.sheetBackdrop}>
+        <View style={[s.sheet, { maxHeight: '80%' }]}>
+          <View style={s.sheetHandle} />
+          <Text style={s.sheetTitle}>Solicitudes de adopción</Text>
+
+          {solicitudes.length === 0 ? (
+            <View style={{ alignItems: 'center', paddingVertical: S[24], gap: 8 }}>
+              <Text style={{ fontSize: 32 }}>💌</Text>
+              <Text style={s.sheetRowSub}>No tenés solicitudes pendientes.</Text>
+            </View>
+          ) : (
+            <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
+              {solicitudes.map(r => {
+                const sem = semaforoSolicitud(r.questions_answers);
+                const responding = respondingId === r.match_id;
+                return (
+                  <View key={r.match_id} style={s.solicitudRow}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <Text style={s.solicitudName}>{r.adoptant_name || 'Usuario'}</Text>
+                      <Text style={s.solicitudArrow}>quiere adoptar a</Text>
+                      <Text style={s.solicitudName}>{r.alerta_name}</Text>
+                    </View>
+                    <View style={[s.reportBadge, { backgroundColor: C.cloud, marginTop: 6 }]}>
+                      <Text style={s.reportBadgeTxt}>{sem.emoji} {sem.label}</Text>
+                    </View>
+                    {r.questions_answers?.reason ? (
+                      <Text style={s.solicitudQA} numberOfLines={2}>
+                        <Text style={{ fontWeight: '700' }}>Por qué quiere adoptar: </Text>
+                        {r.questions_answers.reason}
+                      </Text>
+                    ) : null}
+                    {r.questions_answers?.behaviorPlan ? (
+                      <Text style={s.solicitudQA} numberOfLines={2}>
+                        <Text style={{ fontWeight: '700' }}>Ante un problema de comportamiento: </Text>
+                        {r.questions_answers.behaviorPlan}
+                      </Text>
+                    ) : null}
+                    <Text style={s.reportMeta}>{formatTimeAgo(r.requested_at)}</Text>
+
+                    {responding ? (
+                      <ActivityIndicator size="small" color={C.teal} style={{ marginTop: 10 }} />
+                    ) : (
+                      <View style={s.solicitudBtns}>
+                        <TouchableOpacity
+                          style={s.solicitudReject}
+                          onPress={() => handleResponderSolicitud(r.match_id, false)}
+                        >
+                          <Text style={s.solicitudRejectTxt}>Rechazar</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={s.solicitudApprove}
+                          onPress={() => handleResponderSolicitud(r.match_id, true)}
+                        >
+                          <Text style={s.solicitudApproveTxt}>Aprobar</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  </View>
+                );
+              })}
+            </ScrollView>
+          )}
+
+          <TouchableOpacity style={[s.sheetClose, { marginTop: S[16] }]} onPress={() => setActiveModal(null)}>
+            <Text style={s.sheetCloseTxt}>Cerrar</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -422,6 +524,14 @@ export default function PerfilUsuarioScreen({ navigation }) {
           <MenuRow icon={Shield}        label="Privacidad"                               onPress={() => setActiveModal('privacidad')} color={C.coral} />
           <View style={s.menuDivider} />
           <MenuRow icon={Heart}         label="Mis reportes"       value={`${alertasMias.length}`} onPress={() => setActiveModal('reportes')} color={C.found} />
+          <View style={s.menuDivider} />
+          <MenuRow
+            icon={Heart}
+            label="Solicitudes de adopción"
+            value={solicitudes.length > 0 ? `${solicitudes.length} pendiente${solicitudes.length === 1 ? '' : 's'}` : 'Sin pendientes'}
+            onPress={() => setActiveModal('solicitudes')}
+            color={C.coral}
+          />
         </View>
       </View>
 
@@ -548,4 +658,17 @@ const s = StyleSheet.create({
   reportResolveTxt: { fontSize: T.xs, fontWeight: '700', color: C.white },
   reportResolvedPill: { backgroundColor: C.foundBg, paddingHorizontal: 10, paddingVertical: 6, borderRadius: R.full },
   reportResolvedTxt:  { fontSize: T.xs, fontWeight: '700', color: C.found },
+
+  // Solicitudes de adopción
+  solicitudRow: {
+    paddingVertical: S[14], borderBottomWidth: 1, borderBottomColor: C.borderLight, gap: 4,
+  },
+  solicitudName:  { fontSize: T.sm, fontWeight: '700', color: C.ink },
+  solicitudArrow: { fontSize: T.xs, color: C.inkLight },
+  solicitudQA:    { fontSize: T.xs, color: C.inkMid, lineHeight: 17, marginTop: 2 },
+  solicitudBtns:  { flexDirection: 'row', gap: 8, marginTop: 10 },
+  solicitudReject:  { flex: 1, paddingVertical: 10, borderRadius: R.lg, borderWidth: 1.5, borderColor: C.border, alignItems: 'center' },
+  solicitudRejectTxt: { fontSize: T.xs, fontWeight: '700', color: C.inkMid },
+  solicitudApprove:  { flex: 1, paddingVertical: 10, borderRadius: R.lg, backgroundColor: C.found, alignItems: 'center' },
+  solicitudApproveTxt: { fontSize: T.xs, fontWeight: '700', color: C.white },
 });

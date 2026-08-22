@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ActivityIndicator, Alert,
+  ActivityIndicator, Alert, TextInput, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { C } from '../theme/colors';
@@ -70,6 +70,22 @@ export default function PerfilAdoptanteScreen({ navigation, route }) {
   const [timeAvailability, setTimeAvailability] = useState('some');
   const [livesWith, setLivesWith] = useState([]);
 
+  // Preguntas de responsabilidad — se guardan en questions_answers (jsonb),
+  // una columna que ya existía en adoptant_profiles pero nunca se completaba.
+  // hasExperience/willingToLearn se manejan como 'yes'|'no'|'' en la UI
+  // (para reusar RadioGroup) y se convierten a boolean recién al guardar.
+  const [reason,         setReason]         = useState('');
+  const [hasExperience,  setHasExperience]  = useState('');
+  const [willingToLearn, setWillingToLearn] = useState('');
+  const [behaviorPlan,   setBehaviorPlan]   = useState('');
+  const [expenseAck,     setExpenseAck]     = useState(false);
+
+  const canSave = reason.trim().length > 0
+    && behaviorPlan.trim().length > 0
+    && expenseAck
+    && hasExperience !== ''
+    && (hasExperience === 'yes' || willingToLearn !== '');
+
   useEffect(() => {
     loadProfile();
   }, []);
@@ -86,6 +102,13 @@ export default function PerfilAdoptanteScreen({ navigation, route }) {
         setSpaceType(profile.space_type || 'apartment');
         setTimeAvailability(profile.time_availability || 'some');
         setLivesWith(profile.lives_with || []);
+
+        const qa = profile.questions_answers || {};
+        setReason(qa.reason || '');
+        setHasExperience(qa.hasExperience === true ? 'yes' : qa.hasExperience === false ? 'no' : '');
+        setWillingToLearn(qa.willingToLearn === true ? 'yes' : qa.willingToLearn === false ? 'no' : '');
+        setBehaviorPlan(qa.behaviorPlan || '');
+        setExpenseAck(!!qa.expenseAck);
       }
     } catch (err) {
       console.warn('loadProfile error:', err);
@@ -95,6 +118,10 @@ export default function PerfilAdoptanteScreen({ navigation, route }) {
   };
 
   const save = async () => {
+    if (!canSave) {
+      Alert.alert('Faltan datos', 'Completá el motivo, el plan ante un problema de comportamiento y confirmá que podés asumir el gasto mensual.');
+      return;
+    }
     try {
       setSaving(true);
       const { data: { user } } = await supabase.auth.getUser();
@@ -110,6 +137,13 @@ export default function PerfilAdoptanteScreen({ navigation, route }) {
         spaceType,
         timeAvailability,
         livesWith,
+        questionsAnswers: {
+          reason: reason.trim(),
+          hasExperience: hasExperience === 'yes',
+          willingToLearn: hasExperience === 'yes' ? null : willingToLearn === 'yes',
+          behaviorPlan: behaviorPlan.trim(),
+          expenseAck,
+        },
       };
 
       if (profile) {
@@ -138,7 +172,7 @@ export default function PerfilAdoptanteScreen({ navigation, route }) {
   }
 
   return (
-    <View style={[st.screen, { paddingTop: insets.top }]}>
+    <KeyboardAvoidingView style={[st.screen, { paddingTop: insets.top }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={st.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Text style={st.back}>‹</Text>
@@ -149,6 +183,7 @@ export default function PerfilAdoptanteScreen({ navigation, route }) {
       <ScrollView
         contentContainerStyle={[st.content, isDesktop && st.contentDesktop]}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         <View style={st.card}>
           <Text style={st.cardTitle}>¿Qué tamaño de perro te gustaría?</Text>
@@ -217,10 +252,66 @@ export default function PerfilAdoptanteScreen({ navigation, route }) {
           />
         </View>
 
+        <View style={st.card}>
+          <Text style={st.cardTitle}>¿Por qué querés adoptar en este momento? *</Text>
+          <TextInput
+            style={st.textInput}
+            value={reason}
+            onChangeText={setReason}
+            placeholder="Contanos brevemente tu motivo..."
+            placeholderTextColor={C.inkMuted}
+            multiline
+            maxLength={300}
+          />
+        </View>
+
+        <View style={st.card}>
+          <Text style={st.cardTitle}>¿Tenés experiencia previa con perros?</Text>
+          <RadioGroup
+            options={[{ id: 'yes', label: 'Sí' }, { id: 'no', label: 'No' }]}
+            value={hasExperience}
+            onChange={setHasExperience}
+          />
+          {hasExperience === 'no' && (
+            <View style={{ marginTop: 4 }}>
+              <Text style={[st.label, { marginBottom: 8 }]}>¿Estás dispuesto/a a informarte antes de adoptar?</Text>
+              <RadioGroup
+                options={[{ id: 'yes', label: 'Sí' }, { id: 'no', label: 'No' }]}
+                value={willingToLearn}
+                onChange={setWillingToLearn}
+              />
+            </View>
+          )}
+        </View>
+
+        <View style={st.card}>
+          <Text style={st.cardTitle}>¿Qué harías si el perro tiene un problema de comportamiento a los 2 meses? *</Text>
+          <TextInput
+            style={st.textInput}
+            value={behaviorPlan}
+            onChangeText={setBehaviorPlan}
+            placeholder="Ej: buscaría ayuda de un adiestrador, me informaría..."
+            placeholderTextColor={C.inkMuted}
+            multiline
+            maxLength={300}
+          />
+        </View>
+
+        <View style={st.card}>
+          <TouchableOpacity style={st.checkRow} onPress={() => setExpenseAck(v => !v)} activeOpacity={0.75}>
+            <View style={[st.check, expenseAck && st.checkDone]}>
+              {expenseAck && <Text style={st.checkMark}>✓</Text>}
+            </View>
+            <Text style={[st.checkTxt, { flex: 1 }]}>
+              Entiendo que adoptar implica un gasto mensual (comida, veterinario, vacunas) y estoy en condiciones de asumirlo *
+            </Text>
+          </TouchableOpacity>
+        </View>
+
         <TouchableOpacity
-          style={[st.saveBtn, saving && st.saveBtnDisabled]}
+          style={[st.saveBtn, (saving || !canSave) && st.saveBtnDisabled]}
           onPress={save}
-          disabled={saving}
+          disabled={saving || !canSave}
         >
           {saving ? (
             <ActivityIndicator color={C.white} />
@@ -229,7 +320,7 @@ export default function PerfilAdoptanteScreen({ navigation, route }) {
           )}
         </TouchableOpacity>
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -247,6 +338,13 @@ const st = StyleSheet.create({
 
   group: { gap: 12 },
   label: { fontSize: T.sm, fontWeight: '600', color: C.inkMid },
+
+  textInput: {
+    backgroundColor: C.cloud, borderRadius: R.md,
+    borderWidth: 1.5, borderColor: C.border,
+    padding: 12, fontSize: T.sm, color: C.ink,
+    minHeight: 70, textAlignVertical: 'top',
+  },
 
   radioRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 },
   radio: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: C.border },

@@ -69,13 +69,18 @@ export async function updateAdoptantProfile(userId, profile) {
 
 export async function likeAdoption(adoptantId, alertaId, liked = true) {
   try {
+    // onConflict explícito: sin esto, upsert() resuelve conflictos por la
+    // primary key (id, que siempre es nueva) y cada "Me gusta"/"No me
+    // interesa" insertaba una fila nueva en vez de actualizar la solicitud
+    // existente para ese par adoptante/mascota. Requiere la unique
+    // constraint sobre (adoptant_id, alerta_id) — ver SQL de setup.
     const { data, error } = await supabase
       .from('adoption_matches')
       .upsert({
         adoptant_id: adoptantId,
         alerta_id: alertaId,
         adoptant_liked: liked,
-      })
+      }, { onConflict: 'adoptant_id,alerta_id' })
       .select()
       .single();
     return data;
@@ -143,4 +148,30 @@ export async function getAdoptionMatches(alertaId) {
   } catch {
     return [];
   }
+}
+
+// Solicitudes de adopción pendientes sobre MIS alertas — usa la función
+// get_pending_adoption_requests(), que corre como SECURITY DEFINER y solo
+// devuelve filas de alertas donde auth.uid() es el dueño. No hace falta un
+// select amplio sobre adoption_matches/adoptant_profiles desde el cliente.
+export async function getPendingAdoptionRequests() {
+  try {
+    const { data, error } = await supabase.rpc('get_pending_adoption_requests');
+    if (error) throw error;
+    return data || [];
+  } catch (err) {
+    console.warn('getPendingAdoptionRequests error:', err);
+    return [];
+  }
+}
+
+// Aprobar (approve=true) o rechazar (approve=false) una solicitud. La RPC
+// verifica del lado del servidor que quien llama sea el dueño de la alerta
+// relacionada antes de tocar owner_liked.
+export async function respondAdoptionMatch(matchId, approve) {
+  const { error } = await supabase.rpc('respond_adoption_match', {
+    match_id: matchId,
+    approve,
+  });
+  if (error) throw error;
 }
