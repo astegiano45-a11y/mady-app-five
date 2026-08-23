@@ -206,7 +206,9 @@ const st = StyleSheet.create({
   },
   cardDesktop: { width: '100%', maxWidth: 640, alignSelf: 'center' },
 
-  photo: { width: '100%', aspectRatio: 4 / 3, backgroundColor: C.cloud },
+  // Antes 4/3 (más cuadrada) — más panorámica para que ocupe menos alto y
+  // se llegue a ver la tarjeta de info completa sin scrollear tanto.
+  photo: { width: '100%', aspectRatio: 16 / 9, backgroundColor: C.cloud },
   photoPlaceholder: { alignItems: 'center', justifyContent: 'center' },
 
   body: { padding: S[20] },
@@ -221,7 +223,7 @@ const st = StyleSheet.create({
   badgeDot: { width: 6, height: 6, borderRadius: 3 },
   badgeTxt: { fontSize: T.xs, fontWeight: '800', letterSpacing: 0.6 },
 
-  name: { fontSize: T['2xl'], fontWeight: '800', color: C.ink },
+  name: { fontSize: T.xl, fontWeight: '800', color: C.ink },
 
   // Bloque zona/fecha — "well" tintado como los sub-bloques de Mis reportes,
   // con íconos en chip circular igual que MenuRow de PerfilUsuarioScreen.
@@ -230,7 +232,7 @@ const st = StyleSheet.create({
     borderRadius: R.xl,
     marginBottom: S[16],
   },
-  infoRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: S[12] },
+  infoRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: S[8], paddingHorizontal: S[12] },
   infoRowDivider: { borderBottomWidth: 1, borderBottomColor: C.border },
   iconBadge: {
     width: 36, height: 36, borderRadius: 18,
