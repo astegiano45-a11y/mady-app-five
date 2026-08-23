@@ -7,7 +7,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TextInput,
   TouchableOpacity, Animated, Platform, KeyboardAvoidingView,
-  ActivityIndicator, Image, Alert,
+  ActivityIndicator, Image, Modal,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -341,25 +341,27 @@ export default function ReportarScreen({ navigation, route }) {
   const [hasLocation, setHasLocation] = useState(false); // ¿la alerta quedó geolocalizada?
   const [formDirty, setFormDirty] = useState(false); // ¿hay datos cargados en el paso 2?
   const [submitError, setSubmitError] = useState(''); // error real de guardado (found/adoption)
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
 
   const handleTipo = (t) => { setTipo(t); setPaso(2); setSubmitError(''); };
 
   // Volver del paso 2 al paso 1 — si hay datos cargados, confirma antes de
   // descartarlos. La usan tanto el botón del header como el "← Volver".
+  // Usa un <Modal> propio en vez de Alert.alert: react-native-web (lo que
+  // corre esta app en producción) implementa Alert.alert como un no-op total
+  // -- "static alert() {}" -- así que con Alert.alert acá el botón atrás
+  // quedaba muerto en el navegador en cuanto el formulario tenía algo
+  // cargado, reintroduciendo el bloqueo original que este mismo fix debía
+  // resolver.
   const requestBack = () => {
     if (formDirty) {
-      Alert.alert(
-        'Descartar reporte',
-        'Vas a perder los datos que cargaste en el formulario. ¿Querés descartarlos?',
-        [
-          { text: 'Cancelar', style: 'cancel' },
-          { text: 'Descartar', style: 'destructive', onPress: () => { setFormDirty(false); setPaso(1); } },
-        ]
-      );
+      setShowDiscardConfirm(true);
     } else {
       setPaso(1);
     }
   };
+  const cancelDiscard  = () => setShowDiscardConfirm(false);
+  const confirmDiscard = () => { setShowDiscardConfirm(false); setFormDirty(false); setPaso(1); };
 
   const handleSubmit = async (datos) => {
     setLoading(true);
@@ -438,6 +440,26 @@ export default function ReportarScreen({ navigation, route }) {
   const handleReset = () => { setPaso(1); setTipo(null); setResult(null); };
 
   return (
+    <>
+    {/* Confirmar descarte del formulario — ver comentario en requestBack()
+        sobre por qué esto es un <Modal> y no Alert.alert. */}
+    <Modal visible={showDiscardConfirm} transparent animationType="fade" onRequestClose={cancelDiscard}>
+      <TouchableOpacity style={st.modalBackdrop} activeOpacity={1} onPress={cancelDiscard}>
+        <View style={st.modalBox}>
+          <Text style={st.modalTitle}>Descartar reporte</Text>
+          <Text style={st.modalSub}>Vas a perder los datos que cargaste en el formulario. ¿Querés descartarlos?</Text>
+          <View style={st.modalBtns}>
+            <TouchableOpacity style={st.modalCancel} onPress={cancelDiscard}>
+              <Text style={st.modalCancelTxt}>Cancelar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={st.modalConfirm} onPress={confirmDiscard}>
+              <Text style={st.modalConfirmTxt}>Descartar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </TouchableOpacity>
+    </Modal>
+
     <KeyboardAvoidingView
       style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -497,6 +519,7 @@ export default function ReportarScreen({ navigation, route }) {
         </ScrollView>
       </LinearGradient>
     </KeyboardAvoidingView>
+    </>
   );
 }
 
@@ -610,4 +633,15 @@ const st = StyleSheet.create({
     marginTop: S[8], width: '100%',
   },
   confirmCardTxt: { fontSize: T.sm, fontWeight: '600' },
+
+  // Modal confirmar descarte
+  modalBackdrop:  { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center', padding: 32 },
+  modalBox:       { backgroundColor: C.white, borderRadius: R['2xl'], padding: S[24], width: '100%', maxWidth: 320 },
+  modalTitle:     { fontSize: T.lg, fontWeight: '800', color: C.ink, marginBottom: 6, textAlign: 'center' },
+  modalSub:       { fontSize: T.sm, color: C.inkLight, marginBottom: S[20], textAlign: 'center', lineHeight: 20 },
+  modalBtns:      { flexDirection: 'row', gap: 10 },
+  modalCancel:    { flex: 1, paddingVertical: 12, borderRadius: R.xl, borderWidth: 1.5, borderColor: C.border, alignItems: 'center' },
+  modalCancelTxt: { fontSize: T.sm, fontWeight: '700', color: C.inkMid },
+  modalConfirm:   { flex: 1, paddingVertical: 12, borderRadius: R.xl, backgroundColor: C.lost, alignItems: 'center' },
+  modalConfirmTxt:{ fontSize: T.sm, fontWeight: '700', color: C.white },
 });

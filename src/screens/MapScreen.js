@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, Pressable, ScrollView, Image,
-  ActivityIndicator, Animated, Alert, Platform, Linking,
+  ActivityIndicator, Animated, Platform, Linking, Modal,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import LeafletMap from '../components/LeafletMap';
@@ -165,6 +165,14 @@ export default function MapScreen({ navigation }) {
   const [sightingSuccess, setSightingSuccess] = useState(false);
   const [sightings, setSightings] = useState([]);
   const [loadingSightings, setLoadingSightings] = useState(false);
+  // Reemplazan Alert.alert en todo este screen: react-native-web (lo que
+  // corre esta app en producción) implementa Alert.alert como un no-op
+  // total -- "static alert() {}" -- así que cualquier Alert.alert acá no
+  // mostraba nada en el navegador. contactInfo maneja el selector
+  // WhatsApp/Llamar; infoMessage cubre los avisos de un solo botón
+  // (sin teléfono, error, avistamiento registrado, etc.).
+  const [contactInfo, setContactInfo] = useState(null);   // { petName, phone }
+  const [infoMessage, setInfoMessage] = useState(null);   // { title, body }
 
   const slideAnim = useRef(new Animated.Value(300)).current;
 
@@ -263,7 +271,7 @@ export default function MapScreen({ navigation }) {
   // de quien reportó esa alerta puntual, sin abrir el resto de su perfil.
   const handleContact = useCallback(async (pin) => {
     if (!pin.user_id) {
-      Alert.alert('Contacto no disponible', 'No pudimos encontrar el contacto de quien reportó esta mascota.');
+      setInfoMessage({ title: 'Contacto no disponible', body: 'No pudimos encontrar el contacto de quien reportó esta mascota.' });
       return;
     }
     try {
@@ -274,26 +282,16 @@ export default function MapScreen({ navigation }) {
 
       const phone = data?.phone?.trim();
       if (error || !phone) {
-        Alert.alert(
-          'Sin teléfono de contacto',
-          `${data?.name ? `${data.name} (quien reportó a ${pin.name})` : `Quien reportó a ${pin.name}`} no cargó un teléfono de contacto todavía.`
-        );
+        setInfoMessage({
+          title: 'Sin teléfono de contacto',
+          body: `${data?.name ? `${data.name} (quien reportó a ${pin.name})` : `Quien reportó a ${pin.name}`} no cargó un teléfono de contacto todavía.`,
+        });
         return;
       }
 
-      // wa.me solo acepta dígitos (sin +, espacios ni guiones)
-      const digits = phone.replace(/\D/g, '');
-      Alert.alert(
-        `Contactar sobre ${pin.name}`,
-        `Teléfono: ${phone}`,
-        [
-          { text: 'Cancelar', style: 'cancel' },
-          { text: '📱 WhatsApp', onPress: () => Linking.openURL(`https://wa.me/${digits}`) },
-          { text: '📞 Llamar', onPress: () => Linking.openURL(`tel:${phone}`) },
-        ]
-      );
+      setContactInfo({ petName: pin.name, phone });
     } catch (e) {
-      Alert.alert('Error', 'No pudimos obtener el contacto. Intentá de nuevo.');
+      setInfoMessage({ title: 'Error', body: 'No pudimos obtener el contacto. Intentá de nuevo.' });
     }
   }, []);
 
@@ -303,7 +301,7 @@ export default function MapScreen({ navigation }) {
     try {
       const myLoc = await getCurrentLocation();
       if (!myLoc) {
-        Alert.alert('Ubicación', 'No pudimos obtener tu ubicación. Verificá los permisos.');
+        setInfoMessage({ title: 'Ubicación', body: 'No pudimos obtener tu ubicación. Verificá los permisos.' });
         setReportingSighting(false);
         return;
       }
@@ -311,9 +309,9 @@ export default function MapScreen({ navigation }) {
       setSightingSuccess(true);
       setTimeout(() => setSightingSuccess(false), 3000);
       await loadSightings(pin.id); // refresca la lista — el nuevo avistamiento aparece al toque
-      Alert.alert('✅ Avistamiento registrado', `¡Gracias! Tu reporte ayuda al dueño a encontrar a ${pin.name}.`);
+      setInfoMessage({ title: '✅ Avistamiento registrado', body: `¡Gracias! Tu reporte ayuda al dueño a encontrar a ${pin.name}.` });
     } catch (err) {
-      Alert.alert('Error', 'No pudimos registrar el avistamiento. Intenta de nuevo.');
+      setInfoMessage({ title: 'Error', body: 'No pudimos registrar el avistamiento. Intenta de nuevo.' });
     } finally {
       setReportingSighting(false);
     }
@@ -323,6 +321,46 @@ export default function MapScreen({ navigation }) {
 
   return (
     <View style={[scr.screen, { paddingTop: insets.top }]}>
+
+      {/* ── Modal contactar: WhatsApp / Llamar ── */}
+      <Modal visible={!!contactInfo} transparent animationType="fade" onRequestClose={() => setContactInfo(null)}>
+        <Pressable style={scr.modalBackdrop} onPress={() => setContactInfo(null)}>
+          <Pressable style={scr.modalBox} onPress={() => {}}>
+            <Text style={scr.modalTitle}>Contactar sobre {contactInfo?.petName}</Text>
+            <Text style={scr.modalSub}>Teléfono: {contactInfo?.phone}</Text>
+            <View style={{ gap: SPACING.sm, marginTop: SPACING.md }}>
+              <Pressable
+                style={[scr.modalBtn, { backgroundColor: '#25D366' }]}
+                onPress={() => { Linking.openURL(`https://wa.me/${contactInfo.phone.replace(/\D/g, '')}`); setContactInfo(null); }}
+              >
+                <Text style={scr.modalBtnText}>📱 WhatsApp</Text>
+              </Pressable>
+              <Pressable
+                style={[scr.modalBtn, { backgroundColor: '#2563EB' }]}
+                onPress={() => { Linking.openURL(`tel:${contactInfo.phone}`); setContactInfo(null); }}
+              >
+                <Text style={scr.modalBtnText}>📞 Llamar</Text>
+              </Pressable>
+              <Pressable style={scr.modalCancelBtn} onPress={() => setContactInfo(null)}>
+                <Text style={scr.modalCancelTxt}>Cancelar</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* ── Modal informativo (sin teléfono, error, avistamiento registrado, etc.) ── */}
+      <Modal visible={!!infoMessage} transparent animationType="fade" onRequestClose={() => setInfoMessage(null)}>
+        <Pressable style={scr.modalBackdrop} onPress={() => setInfoMessage(null)}>
+          <Pressable style={scr.modalBox} onPress={() => {}}>
+            <Text style={scr.modalTitle}>{infoMessage?.title}</Text>
+            <Text style={scr.modalSub}>{infoMessage?.body}</Text>
+            <Pressable style={[scr.modalBtn, { backgroundColor: '#5B4FFF', marginTop: SPACING.md }]} onPress={() => setInfoMessage(null)}>
+              <Text style={scr.modalBtnText}>Entendido</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {/* ── Header ── */}
       <View style={scr.header}>
@@ -419,6 +457,16 @@ export default function MapScreen({ navigation }) {
 
 const scr = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#EEF2F7' },
+
+  // Modales (contactar / avisos) — ver comentario junto a contactInfo/infoMessage
+  modalBackdrop:  { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center', padding: 32 },
+  modalBox:       { backgroundColor: '#FFF', borderRadius: RADIUS.xl, padding: SPACING.lg, width: '100%', maxWidth: 320, ...SHADOW.lg },
+  modalTitle:     { fontSize: FONTS.lg, fontWeight: '800', color: '#111827', marginBottom: 6, textAlign: 'center' },
+  modalSub:       { fontSize: FONTS.sm, color: '#6B7280', textAlign: 'center', lineHeight: 20 },
+  modalBtn:       { borderRadius: RADIUS.md, paddingVertical: SPACING.md, alignItems: 'center' },
+  modalBtnText:   { fontSize: FONTS.base, fontWeight: '700', color: '#FFF' },
+  modalCancelBtn: { paddingVertical: SPACING.sm, alignItems: 'center' },
+  modalCancelTxt: { fontSize: FONTS.sm, fontWeight: '600', color: '#6B7280' },
 
   header: {
     flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between',
