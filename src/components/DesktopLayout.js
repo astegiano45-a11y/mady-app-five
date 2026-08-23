@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, Text, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, Text, TouchableOpacity, Image } from 'react-native';
 import { useIsDesktop } from '../hooks/useIsDesktop';
 import { C } from '../theme/colors';
 import { R, S } from '../theme/spacing';
@@ -21,7 +21,11 @@ export default function DesktopLayout({ children, currentScreen, navigation }) {
     <View style={st.container}>
       {/* NAVBAR DESKTOP */}
       <View style={st.navbar}>
-        <Text style={st.logo}>🐾 Mady</Text>
+        <Image
+          source={require('../../assets/logo-mady-transparent.png')}
+          style={st.logo}
+          resizeMode="contain"
+        />
         <View style={st.navLinks}>
           {[
             { label: 'Inicio', screen: 'Inicio' },
@@ -71,10 +75,15 @@ const st = StyleSheet.create({
     borderBottomColor: C.border,
     gap: S[24],
   },
+  // Antes era <Text>🐾 Mady</Text> (fontSize T.xl≈24, fontWeight 800) — el
+  // alto acá se eligió para ocupar un espacio equivalente al que tenía ese
+  // texto en la navbar. width/height explícitos (no "aspectRatio" solo):
+  // react-native-web no calculaba el ancho a partir de aspectRatio + height
+  // acá y el logo quedaba con el ancho natural del PNG (1740px), empujando
+  // el resto de la navbar fuera de la pantalla.
   logo: {
-    fontSize: T.xl,
-    fontWeight: '800',
-    color: C.teal,
+    width: 77,
+    height: 40,
   },
   navLinks: {
     flex: 1,
