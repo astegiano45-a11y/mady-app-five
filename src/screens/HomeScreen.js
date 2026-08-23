@@ -101,11 +101,13 @@ const qa = StyleSheet.create({
   iconWrap:{ width:42, height:42, borderRadius: R.lg, alignItems:'center', justifyContent:'center' },
   label:   { fontSize: 11, fontWeight:'700', textAlign:'center' },
   // Desktop: antes las 4 cards quedaban carriles finitos (mucho ancho por
-  // columna, altura chica y fija por el contenido) — más padding vertical
-  // e ícono más grande para una proporción más cuadrada/compacta.
-  cardDesktop:     { paddingVertical: S[28], paddingHorizontal: S[16], gap: S[12] },
-  iconWrapDesktop: { width: 56, height: 56, borderRadius: R.xl },
-  labelDesktop:    { fontSize: 13 },
+  // columna, altura chica y fija por el contenido) — un poco más de padding
+  // e ícono más grande para una proporción más cuadrada. El bump original
+  // (padding 28/16, ícono 56) quedó demasiado espacioso/grande — se achica
+  // a un ajuste más sutil, más parecido al tamaño compacto de mobile.
+  cardDesktop:     { paddingVertical: S[16], paddingHorizontal: S[14], gap: S[8] },
+  iconWrapDesktop: { width: 46, height: 46, borderRadius: R.lg },
+  labelDesktop:    { fontSize: 12 },
 });
 
 function ActivityRow({ item, onPress }) {
@@ -624,10 +626,13 @@ const s = StyleSheet.create({
   statCard:    { flex:1, flexBasis:0, backgroundColor: C.white, borderRadius: R.lg, padding: S[14],
                  paddingLeft: S[14] + 4, alignItems:'center', overflow:'hidden',
                  position:'relative', ...SH.xs },
-  statCardDesktop: { paddingVertical: S[28] },
+  // Bump de desktop más sutil que antes (padding 28 quedaba muy alto y
+  // separaba mucho el número de la etiqueta) — más parecido al tamaño
+  // compacto de mobile.
+  statCardDesktop: { paddingVertical: S[16] },
   statAccent:  { position:'absolute', left:0, top:0, bottom:0, width:4 },
   statVal:     { fontSize:22, fontWeight:'900', lineHeight:26 },
-  statValDesktop: { fontSize:28, lineHeight:32 },
+  statValDesktop: { fontSize:24, lineHeight:28 },
   statLbl:     { fontSize:10, color: C.inkMuted, marginTop:3, fontWeight:'500', textAlign:'center' },
-  statLblDesktop: { fontSize:12, marginTop: S[6] },
+  statLblDesktop: { fontSize:11, marginTop: 4 },
 });
