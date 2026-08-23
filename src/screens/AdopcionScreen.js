@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Image, ScrollView,
+  View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Image, ScrollView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { C } from '../theme/colors';
@@ -9,6 +9,7 @@ import { T } from '../theme/typography';
 import { supabase } from '../lib/supabase';
 import { getAdoptantProfile, likeAdoption } from '../services/adoptantService';
 import { useIsDesktop } from '../hooks/useIsDesktop';
+import InfoModal from '../components/InfoModal';
 
 export default function AdopcionScreen({ navigation }) {
   const insets = useSafeAreaInsets();
@@ -18,6 +19,9 @@ export default function AdopcionScreen({ navigation }) {
   const [mascotas, setMascotas] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [userId, setUserId] = useState(null);
+  // Alert.alert es un no-op en react-native-web (ver InfoModal.js) — sin esto
+  // el "avisamos al dueño" nunca se veía tras dar Me gusta.
+  const [infoMessage, setInfoMessage] = useState(null); // { title, body }
   // Antes solo se caía al placeholder 🏠 si photo_url venía null — un link
   // roto (foto borrada del hosting) se intentaba cargar igual y quedaba en
   // blanco, sin ningún aviso. onError en el <Image> de abajo lo detecta.
@@ -86,7 +90,7 @@ export default function AdopcionScreen({ navigation }) {
       // sola. El mensaje antes decía "agregado a favoritos", que sonaba a
       // trámite terminado; ahora deja claro que queda pendiente de que el
       // dueño la revise y decida.
-      Alert.alert('💌 Solicitud enviada', `Le avisamos al dueño de ${item.name}. Te va a contactar si aprueba tu solicitud.`);
+      setInfoMessage({ title: '💌 Solicitud enviada', body: `Le avisamos al dueño de ${item.name}. Te va a contactar si aprueba tu solicitud.` });
       setTimeout(() => setCurrentIndex(currentIndex + 1), 500);
     } catch (err) {
       console.warn('handleSwipeRight error:', err);
@@ -198,6 +202,13 @@ export default function AdopcionScreen({ navigation }) {
 
   return (
     <View style={[st.screen, { paddingTop: insets.top }]}>
+      <InfoModal
+        visible={!!infoMessage}
+        title={infoMessage?.title}
+        body={infoMessage?.body}
+        onClose={() => setInfoMessage(null)}
+      />
+
       <View style={st.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Text style={st.backTxt}>‹</Text>
