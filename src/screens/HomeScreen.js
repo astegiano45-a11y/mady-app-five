@@ -26,6 +26,7 @@ import { T }         from '../theme/typography';
 import GlassCard     from '../components/GlassCard';
 import AlertCard     from '../components/AlertCard';
 import MadyButton    from '../components/MadyButton';
+import OrganicBackdrop from '../components/OrganicBackdrop';
 import { useIsDesktop } from '../hooks/useIsDesktop';
 
 // ── Assets hero carousel ─────────────────────────────────────────────────────
@@ -402,18 +403,27 @@ export default function HomeScreen({ navigation }) {
 
   return (
     <View style={s.screen}>
+      <OrganicBackdrop />
 
       {/* ═══════════════════════════════════════════════════ HEADER ══ */}
-      <Animated.View style={[s.header, { paddingTop: insets.top + 14, opacity: fade }]}>
-        <View style={{ gap: 2 }}>
-          <Text style={s.greeting}>{greeting} 👋</Text>
-          <Text style={s.name}>{firstName}</Text>
-          <Text style={s.nameSub}>¿Cómo estás hoy?</Text>
-        </View>
-        <TouchableOpacity style={s.bellBtn} onPress={nav('Notificaciones')}>
-          <Bell size={20} color={C.inkMid} strokeWidth={1.75} />
-          <View style={s.bellDot} />
-        </TouchableOpacity>
+      {/* Degradé teal → sunset (paleta bandera Tierra del Fuego), en vez del
+          header blanco liso que había antes. */}
+      <Animated.View style={{ opacity: fade }}>
+        <LinearGradient
+          colors={[C.teal, C.sunset]}
+          start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+          style={[s.header, { paddingTop: insets.top + 14 }]}
+        >
+          <View style={{ gap: 2 }}>
+            <Text style={s.greeting}>{greeting} 👋</Text>
+            <Text style={s.name}>{firstName}</Text>
+            <Text style={s.nameSub}>¿Cómo estás hoy?</Text>
+          </View>
+          <TouchableOpacity style={s.bellBtn} onPress={nav('Notificaciones')}>
+            <Bell size={20} color={C.white} strokeWidth={1.75} />
+            <View style={s.bellDot} />
+          </TouchableOpacity>
+        </LinearGradient>
       </Animated.View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 110 }}>
@@ -527,14 +537,13 @@ const s = StyleSheet.create({
 
   // Header
   header:   { flexDirection:'row', justifyContent:'space-between', alignItems:'flex-start',
-              paddingHorizontal: S[20], paddingBottom: S[16],
-              backgroundColor: C.white, borderBottomWidth:1, borderBottomColor: C.borderLight },
-  greeting: { fontSize:11, color: C.teal, fontWeight:'700', letterSpacing:0.6, textTransform:'uppercase' },
-  name:     { fontSize:26, fontWeight:'900', color: C.ink, lineHeight:30 },
-  nameSub:  { fontSize: T.xs, color: C.inkMuted },
-  bellBtn:  { width:44, height:44, borderRadius: R.lg, backgroundColor: C.cloud,
+              paddingHorizontal: S[20], paddingBottom: S[16] },
+  greeting: { fontSize:11, color: 'rgba(255,255,255,0.85)', fontWeight:'700', letterSpacing:0.6, textTransform:'uppercase' },
+  name:     { fontSize:26, fontWeight:'900', color: C.white, lineHeight:30 },
+  nameSub:  { fontSize: T.xs, color: 'rgba(255,255,255,0.75)' },
+  bellBtn:  { width:44, height:44, borderRadius: R.lg, backgroundColor: 'rgba(255,255,255,0.20)',
               alignItems:'center', justifyContent:'center',
-              borderWidth:1, borderColor: C.border, position:'relative' },
+              borderWidth:1, borderColor: 'rgba(255,255,255,0.25)', position:'relative' },
   bellDot:  { position:'absolute', top:9, right:9, width:8, height:8,
               borderRadius: R.full, backgroundColor: C.coral, borderWidth:2, borderColor: C.white },
 

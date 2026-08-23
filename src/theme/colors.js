@@ -1,8 +1,14 @@
 // ─────────────────────────────────────────────────────────────────────────────
-//  Mady Design System · Colors v4
+//  Mady Design System · Colors v5
 //  Paleta reducida: Turquesa + Coral + Blanco + Grises neutros
 //  Verde → estados positivos  |  Rojo → alertas críticas
 //  Sin: violeta, azul, rosa, amarillo
+//
+//  v5 suma "sunset" (naranja de la bandera de Tierra del Fuego) para los
+//  degradados turquesa → naranja de headers/hero/splash — pedido explícito
+//  del usuario, tomado de bandera-rio-grande.png. Uso acotado a esos
+//  degradados de marca; el resto de las pantallas sigue con teal/coral como
+//  siempre.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const palette = {
@@ -13,6 +19,11 @@ export const palette = {
   tealLight:   '#E4F8F8',
   tealMid:     '#9EE8E9',
   tealGlass:   'rgba(24,197,200,0.12)',
+
+  // ── Degradado de marca (bandera Tierra del Fuego: celeste · blanco · naranja)
+  sunset:      '#F5941F',
+  sunsetDeep:  '#D97706',
+  sunsetLight: '#FFF4E5',
 
   // ── Acento ─────────────────────────────────────────────────────────────────
   coral:       '#FF7048',

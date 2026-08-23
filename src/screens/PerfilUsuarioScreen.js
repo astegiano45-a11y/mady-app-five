@@ -20,6 +20,7 @@ import { getAlertasMias, resolverAlerta } from '../services/alertasService';
 import { getPendingAdoptionRequests, respondAdoptionMatch } from '../services/adoptantService';
 import { supabase } from '../lib/supabase';
 import InfoModal from '../components/InfoModal';
+import OrganicBackdrop from '../components/OrganicBackdrop';
 
 // Antes "Mis reportes" navegaba directo a crear una alerta nueva — nunca
 // mostraba las que ya tenías. Este mapa es el mismo criterio de colores que
@@ -494,14 +495,18 @@ export default function PerfilUsuarioScreen({ navigation }) {
       </View>
     </Modal>
 
+    <View style={{ flex: 1, backgroundColor: C.cloud }}>
+    <OrganicBackdrop />
     <ScrollView
-      style={{ flex: 1, backgroundColor: C.cloud }}
+      style={{ flex: 1 }}
       contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
       showsVerticalScrollIndicator={false}
     >
-      {/* Header */}
+      {/* Header — degradé teal → sunset (paleta bandera Tierra del Fuego),
+          antes era teal sólido (teal → tealDeep). */}
       <LinearGradient
-        colors={[C.teal, C.tealDeep]}
+        colors={[C.teal, C.sunset]}
+        start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
         style={[s.headerGradient, { paddingTop: insets.top + 16 }]}
       >
         {/* Avatar */}
@@ -633,6 +638,7 @@ export default function PerfilUsuarioScreen({ navigation }) {
         </TouchableOpacity>
       </View>
     </ScrollView>
+    </View>
     </>
   );
 }

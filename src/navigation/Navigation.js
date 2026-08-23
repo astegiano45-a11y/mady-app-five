@@ -11,6 +11,7 @@ import {
 import { NavigationContainer }        from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator }   from '@react-navigation/bottom-tabs';
+import { LinearGradient }             from 'expo-linear-gradient';
 
 // Auth
 import { useAuth }     from '../context/AuthContext';
@@ -33,6 +34,7 @@ import NotificacionesScreen   from '../screens/NotificacionesScreen';
 import MascotaDetalleScreen   from '../screens/MascotaDetalleScreen';
 
 import { COLORS, FONTS, RADIUS, SHADOW, SPACING } from '../theme';
+import { C } from '../theme/colors';
 import BottomNavigation from '../components/BottomNavigation';
 import DesktopLayout from '../components/DesktopLayout';
 
@@ -62,8 +64,14 @@ function SplashLoader() {
   }, []);
 
   return (
-    <View style={sp.screen}>
-      {/* Logo Mady con animación */}
+    // Degradé teal → sunset de esquina a esquina (paleta bandera Tierra del
+    // Fuego), en vez del fondo blanco liso que había antes.
+    <LinearGradient
+      colors={[C.teal, C.sunset]}
+      start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+      style={sp.screen}
+    >
+      {/* Logo Mady con animación — el marco dorado ya viene en el asset */}
       <Animated.View style={[
         sp.logoWrap,
         { opacity: fadeAnim, transform: [{ scale: scaleAnim }] },
@@ -75,11 +83,17 @@ function SplashLoader() {
         />
       </Animated.View>
 
+      {/* Nombre + tagline — mismo tagline que usa LoginScreen */}
+      <Animated.View style={{ opacity: fadeAnim, alignItems: 'center' }}>
+        <Text style={sp.title}>Mady App</Text>
+        <Text style={sp.tagline}>TU COMPAÑERO SIEMPRE CONTIGO</Text>
+      </Animated.View>
+
       {/* Dots de carga */}
       <Animated.View style={[sp.dotsRow, { opacity: fadeAnim }]}>
         {[0, 1, 2].map((i) => <DotLoader key={i} delay={i * 180} />)}
       </Animated.View>
-    </View>
+    </LinearGradient>
   );
 }
 
@@ -103,7 +117,6 @@ function DotLoader({ delay }) {
 const sp = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: COLORS.white,
     alignItems: 'center',
     justifyContent: 'center',
     gap: SPACING.lg,
@@ -116,6 +129,14 @@ const sp = StyleSheet.create({
     width:  280,
     height: 280,
   },
+  title: {
+    fontSize: 28, fontWeight: '800', color: COLORS.white,
+    letterSpacing: 0.3,
+  },
+  tagline: {
+    fontSize: 12, fontWeight: '700', color: 'rgba(255,255,255,0.85)',
+    letterSpacing: 1.4, marginTop: 4,
+  },
   dotsRow: {
     flexDirection: 'row',
     gap: SPACING.sm,
@@ -123,8 +144,8 @@ const sp = StyleSheet.create({
   },
   dot: {
     width: 9, height: 9, borderRadius: 5,
-    backgroundColor: '#0ABFBC',   // turquesa Mady
-    opacity: 0.75,
+    backgroundColor: COLORS.white,
+    opacity: 0.85,
   },
 });
 
