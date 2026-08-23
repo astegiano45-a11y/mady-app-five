@@ -456,7 +456,7 @@ export default function HomeScreen({ navigation }) {
           // completas, ninguna queda cortada en el borde de la ventana.
           <View style={s.alertsGridDesktop}>
             {alertas.map((item) => (
-              <AlertCard key={item.id} item={item} onPress={nav('Mapa')} />
+              <AlertCard key={item.id} item={item} onPress={() => navigation.navigate('MascotaDetalle', { id: item.id })} />
             ))}
           </View>
         ) : (
@@ -467,7 +467,7 @@ export default function HomeScreen({ navigation }) {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ paddingHorizontal: S[20], paddingBottom: S[4] }}
             renderItem={({ item }) => (
-              <AlertCard item={item} onPress={nav('Mapa')} />
+              <AlertCard item={item} onPress={() => navigation.navigate('MascotaDetalle', { id: item.id })} />
             )}
             ItemSeparatorComponent={() => <View style={{ width: 12 }} />}
           />

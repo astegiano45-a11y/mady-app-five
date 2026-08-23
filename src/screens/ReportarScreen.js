@@ -7,11 +7,11 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TextInput,
   TouchableOpacity, Animated, Platform, KeyboardAvoidingView,
-  ActivityIndicator, Image,
+  ActivityIndicator, Image, Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ShieldAlert, MapPin, Search, Heart, ChevronRight, Check, Camera, X } from 'lucide-react-native';
+import { ShieldAlert, MapPin, Search, Heart, ChevronRight, Check, Camera, X, ArrowLeft } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { C } from '../theme/colors';
 import { R, S } from '../theme/spacing';
@@ -121,7 +121,7 @@ async function uploadFoto(uri, base64) {
 // ── Paso 2: completar datos ───────────────────────────────────────────────────
 // initialPet: mascota ya registrada (viene de PerfilMascotaScreen.reportLost()).
 // Prellena nombre/descripción/foto en vez de forzar a reescribir todo de cero.
-function StepDatos({ tipo, onBack, onSubmit, loading, initialPet }) {
+function StepDatos({ tipo, onBack, onSubmit, loading, initialPet, onDirtyChange, submitError }) {
   const [name,      setName]      = useState(initialPet?.name || '');
   const [zone,      setZone]      = useState('');
   const [desc,      setDesc]      = useState(initialPet?.description || '');
@@ -136,6 +136,13 @@ function StepDatos({ tipo, onBack, onSubmit, loading, initialPet }) {
   const [error,     setError]     = useState('');
 
   const canSubmit = name.trim().length >= 2 && zone.length > 0;
+
+  // Avisa al padre si hay algo cargado, para poder confirmar antes de
+  // descartar el formulario (botón atrás del header / "← Volver").
+  useEffect(() => {
+    const dirty = name.trim().length > 0 || zone.length > 0 || desc.trim().length > 0 || !!photo;
+    onDirtyChange?.(dirty);
+  }, [name, zone, desc, photo]);
 
   const pickPhoto = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -241,7 +248,7 @@ function StepDatos({ tipo, onBack, onSubmit, loading, initialPet }) {
         )}
       </View>
 
-      {error ? <Text style={st.errorTxt}>{error}</Text> : null}
+      {(error || submitError) ? <Text style={st.errorTxt}>{error || submitError}</Text> : null}
 
       {/* Botones */}
       <View style={{ gap: 12, marginTop: S[8] }}>
@@ -332,11 +339,31 @@ export default function ReportarScreen({ navigation, route }) {
   const [result,   setResult]   = useState(null);
   const [loading,  setLoading]  = useState(false);
   const [hasLocation, setHasLocation] = useState(false); // ¿la alerta quedó geolocalizada?
+  const [formDirty, setFormDirty] = useState(false); // ¿hay datos cargados en el paso 2?
+  const [submitError, setSubmitError] = useState(''); // error real de guardado (found/adoption)
 
-  const handleTipo = (t) => { setTipo(t); setPaso(2); };
+  const handleTipo = (t) => { setTipo(t); setPaso(2); setSubmitError(''); };
+
+  // Volver del paso 2 al paso 1 — si hay datos cargados, confirma antes de
+  // descartarlos. La usan tanto el botón del header como el "← Volver".
+  const requestBack = () => {
+    if (formDirty) {
+      Alert.alert(
+        'Descartar reporte',
+        'Vas a perder los datos que cargaste en el formulario. ¿Querés descartarlos?',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          { text: 'Descartar', style: 'destructive', onPress: () => { setFormDirty(false); setPaso(1); } },
+        ]
+      );
+    } else {
+      setPaso(1);
+    }
+  };
 
   const handleSubmit = async (datos) => {
     setLoading(true);
+    setSubmitError('');
     try {
       // Ubicación real: pedimos permiso UNA sola vez (expo-location — en web
       // usa la Geolocation API del navegador por debajo, en nativo el GPS).
@@ -389,10 +416,20 @@ export default function ReportarScreen({ navigation, route }) {
       setResult(alerta);
       setPaso(3);
     } catch (e) {
-      // Aunque falle el backend, mostramos confirmación (UX de emergencia)
-      setResult({ name: datos.name, zone: datos.zone });
-      setHasLocation(false);
-      setPaso(3);
+      if (tipo.id === 'lost') {
+        // SOS: no bloqueamos al usuario aunque falle el guardado en el
+        // backend — prioridad es que sienta que la alerta salió ya mismo.
+        setResult({ name: datos.name, zone: datos.zone });
+        setHasLocation(false);
+        setPaso(3);
+      } else {
+        // "Encontré una mascota" / "Dar en adopción": acá sí avisamos que
+        // falló de verdad — si no, el reporte nunca llega a la base y la
+        // sección correspondiente (Encontrados / Adopción) queda vacía
+        // sin que nadie se entere de que el guardado no funcionó.
+        console.log('crearAlerta err', e);
+        setSubmitError('No pudimos guardar tu reporte. Revisá tu conexión e intentá de nuevo.');
+      }
     } finally {
       setLoading(false);
     }
@@ -411,9 +448,19 @@ export default function ReportarScreen({ navigation, route }) {
       >
         {/* Header */}
         <View style={[st.header, { paddingTop: insets.top + 8 }]}>
-          <View style={st.headerIcon}>
-            <ShieldAlert size={20} color={C.coral} strokeWidth={2} />
-          </View>
+          {paso === 2 ? (
+            <TouchableOpacity
+              style={st.headerBack}
+              onPress={requestBack}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <ArrowLeft size={22} color={C.ink} strokeWidth={2.25} />
+            </TouchableOpacity>
+          ) : (
+            <View style={st.headerIcon}>
+              <ShieldAlert size={20} color={C.coral} strokeWidth={2} />
+            </View>
+          )}
           <Text style={st.headerTitle}>Reportar</Text>
           <View style={st.headerBadge}>
             <View style={st.liveDot} />
@@ -430,10 +477,12 @@ export default function ReportarScreen({ navigation, route }) {
           {paso === 2 && tipo && (
             <StepDatos
               tipo={tipo}
-              onBack={() => setPaso(1)}
+              onBack={requestBack}
               onSubmit={handleSubmit}
               loading={loading}
               initialPet={petParam}
+              onDirtyChange={setFormDirty}
+              submitError={submitError}
             />
           )}
           {paso === 3 && tipo && result && (
@@ -462,6 +511,10 @@ const st = StyleSheet.create({
   headerIcon: {
     width: 36, height: 36, borderRadius: 18,
     backgroundColor: C.coralLight,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  headerBack: {
+    width: 36, height: 36, borderRadius: 18,
     alignItems: 'center', justifyContent: 'center',
   },
   headerTitle: { fontSize: T.lg, fontWeight: '700', color: C.ink, flex: 1 },

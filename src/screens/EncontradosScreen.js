@@ -50,6 +50,7 @@ export default function EncontradosScreen({ navigation }) {
         .from('alertas')
         .select('*')
         .eq('type', 'found')
+        .eq('status', 'active')
         .order('created_at', { ascending: false });
       setAlertas(data || []);
     } catch {}
