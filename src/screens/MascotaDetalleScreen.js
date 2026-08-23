@@ -5,6 +5,12 @@
 //  siempre tiene foto, nombre, zona, tipo, descripción y fecha, sin importar
 //  qué tan poca info tenía el objeto que la abrió (ej: las cards de Home no
 //  traen description/created_at).
+//
+//  Estilo: header degradé teal (igual que PerfilUsuarioScreen), tarjeta blanca
+//  redondeada con sombra (mismo tratamiento que AlertCard/MisFavoritosScreen),
+//  badge de tipo con la paleta "suave" que ya usa el popup del mapa
+//  (MapScreen.TYPE_INFO), e íconos en chip circular teal como los del menú de
+//  Perfil (PerfilUsuarioScreen.MenuRow).
 // ─────────────────────────────────────────────────────────────────────────────
 import React, { useState, useEffect } from 'react';
 import {
@@ -12,9 +18,10 @@ import {
   TouchableOpacity, Image, ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { ArrowLeft, MapPin, Calendar, PawPrint } from 'lucide-react-native';
 import { C } from '../theme/colors';
-import { R, S } from '../theme/spacing';
+import { R, S, SH } from '../theme/spacing';
 import { T } from '../theme/typography';
 import { supabase } from '../lib/supabase';
 import { useIsDesktop } from '../hooks/useIsDesktop';
@@ -36,6 +43,22 @@ function formatFecha(iso) {
   else if (diffMin < 1440) relativo = `hace ${Math.floor(diffMin / 60)} h`;
   else relativo = `hace ${Math.floor(diffMin / 1440)} días`;
   return `${fecha} · ${relativo}`;
+}
+
+// Fila de dato con ícono en chip circular — mismo tratamiento visual que los
+// íconos de MenuRow en PerfilUsuarioScreen (círculo con fondo tintado).
+function InfoRow({ Icon, label, value, isLast }) {
+  return (
+    <View style={[st.infoRow, !isLast && st.infoRowDivider]}>
+      <View style={st.iconBadge}>
+        <Icon size={16} color={C.teal} strokeWidth={2.25} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={st.infoLabel}>{label}</Text>
+        <Text style={st.infoValue}>{value}</Text>
+      </View>
+    </View>
+  );
 }
 
 export default function MascotaDetalleScreen({ navigation, route }) {
@@ -70,35 +93,32 @@ export default function MascotaDetalleScreen({ navigation, route }) {
     return () => { active = false; };
   }, [id]);
 
-  const Header = () => (
-    <View style={[st.header, { paddingTop: insets.top + 8 }]}>
-      <TouchableOpacity
-        style={st.backBtn}
-        onPress={() => navigation.goBack()}
-        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-      >
-        <ArrowLeft size={22} color={C.ink} strokeWidth={2.25} />
-      </TouchableOpacity>
-      <Text style={st.headerTitle}>Detalle</Text>
-      <View style={{ width: 36 }} />
-    </View>
-  );
+  const type = TYPE_INFO[mascota?.type] || TYPE_INFO.lost;
 
-  if (loading) {
-    return (
-      <View style={[st.screen, st.center]}>
-        <Header />
+  return (
+    <View style={st.screen}>
+      {/* Header degradé — mismo teal que el hero de PerfilUsuarioScreen,
+          en vez de un header blanco genérico. */}
+      <LinearGradient
+        colors={[C.teal, C.tealDeep]}
+        style={[st.header, { paddingTop: insets.top + 8 }]}
+      >
+        <TouchableOpacity
+          style={st.backBtn}
+          onPress={() => navigation.goBack()}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <ArrowLeft size={22} color={C.white} strokeWidth={2.25} />
+        </TouchableOpacity>
+        <Text style={st.headerTitle}>Detalle</Text>
+        <View style={{ width: 36 }} />
+      </LinearGradient>
+
+      {loading ? (
         <View style={st.center}>
           <ActivityIndicator color={C.teal} size="large" />
         </View>
-      </View>
-    );
-  }
-
-  if (notFound || !mascota) {
-    return (
-      <View style={st.screen}>
-        <Header />
+      ) : notFound || !mascota ? (
         <View style={st.center}>
           <PawPrint size={48} color={C.inkMuted} strokeWidth={1.5} />
           <Text style={st.notFoundTxt}>No pudimos encontrar esta mascota</Text>
@@ -107,104 +127,120 @@ export default function MascotaDetalleScreen({ navigation, route }) {
             <Text style={st.backLinkTxt}>← Volver</Text>
           </TouchableOpacity>
         </View>
-      </View>
-    );
-  }
+      ) : (
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[st.scroll, { paddingBottom: insets.bottom + 40 }]}
+        >
+          <View style={[st.card, isDesktop && st.cardDesktop]}>
+            {/* Foto */}
+            {mascota.photo_url && !imgFailed ? (
+              <Image
+                source={{ uri: mascota.photo_url }}
+                style={st.photo}
+                resizeMode="cover"
+                onError={() => setImgFailed(true)}
+              />
+            ) : (
+              <View style={[st.photo, st.photoPlaceholder]}>
+                <Text style={{ fontSize: 72 }}>🐾</Text>
+              </View>
+            )}
 
-  const type = TYPE_INFO[mascota.type] || TYPE_INFO.lost;
+            <View style={st.body}>
+              {/* Badge tipo + nombre — agrupados como bloque de título */}
+              <View style={st.titleBlock}>
+                <View style={[st.badge, { backgroundColor: type.bg }]}>
+                  <View style={[st.badgeDot, { backgroundColor: type.color }]} />
+                  <Text style={[st.badgeTxt, { color: type.color }]}>{type.label.toUpperCase()}</Text>
+                </View>
+                <Text style={st.name}>{mascota.name || 'Sin nombre'}</Text>
+              </View>
 
-  return (
-    <View style={st.screen}>
-      <Header />
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={[st.scroll, isDesktop && st.scrollDesktop, { paddingBottom: insets.bottom + 40 }]}
-      >
-        {/* Foto */}
-        {mascota.photo_url && !imgFailed ? (
-          <Image
-            source={{ uri: mascota.photo_url }}
-            style={st.photo}
-            resizeMode="cover"
-            onError={() => setImgFailed(true)}
-          />
-        ) : (
-          <View style={[st.photo, st.photoPlaceholder]}>
-            <Text style={{ fontSize: 72 }}>🐾</Text>
+              {/* Zona + fecha */}
+              <View style={st.infoCard}>
+                <InfoRow Icon={MapPin} label="ZONA" value={mascota.zone || 'Zona desconocida'} />
+                <InfoRow Icon={Calendar} label="FECHA" value={formatFecha(mascota.created_at)} isLast />
+              </View>
+
+              {/* Descripción */}
+              <View style={st.descCard}>
+                <Text style={st.descLabel}>Descripción</Text>
+                <Text style={st.descTxt}>
+                  {mascota.description?.trim() ? mascota.description : 'Sin descripción.'}
+                </Text>
+              </View>
+            </View>
           </View>
-        )}
-
-        <View style={st.body}>
-          {/* Badge tipo */}
-          <View style={[st.badge, { backgroundColor: type.bg }]}>
-            <Text style={[st.badgeTxt, { color: type.color }]}>{type.label.toUpperCase()}</Text>
-          </View>
-
-          {/* Nombre */}
-          <Text style={st.name}>{mascota.name || 'Sin nombre'}</Text>
-
-          {/* Zona */}
-          <View style={st.row}>
-            <MapPin size={16} color={C.inkLight} strokeWidth={2} />
-            <Text style={st.rowTxt}>{mascota.zone || 'Zona desconocida'}</Text>
-          </View>
-
-          {/* Fecha */}
-          <View style={st.row}>
-            <Calendar size={16} color={C.inkLight} strokeWidth={2} />
-            <Text style={st.rowTxt}>{formatFecha(mascota.created_at)}</Text>
-          </View>
-
-          {/* Descripción */}
-          <View style={st.descWrap}>
-            <Text style={st.descLabel}>Descripción</Text>
-            <Text style={st.descTxt}>
-              {mascota.description?.trim() ? mascota.description : 'Sin descripción.'}
-            </Text>
-          </View>
-        </View>
-      </ScrollView>
+        </ScrollView>
+      )}
     </View>
   );
 }
 
+// ── Estilos ───────────────────────────────────────────────────────────────────
 const st = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: C.white },
+  screen: { flex: 1, backgroundColor: C.cloud },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, padding: S[32] },
 
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: S[16], paddingBottom: 12,
-    backgroundColor: C.white,
-    borderBottomWidth: 1, borderBottomColor: C.border,
+    paddingHorizontal: S[16], paddingBottom: 16,
   },
   backBtn: {
     width: 36, height: 36, borderRadius: 18,
     alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.18)',
   },
-  headerTitle: { fontSize: T.base, fontWeight: '700', color: C.ink },
+  headerTitle: { fontSize: T.base, fontWeight: '700', color: C.white },
 
-  scroll: { flexGrow: 1 },
-  scrollDesktop: { width: '100%', maxWidth: 640, alignSelf: 'center' },
+  scroll: { padding: S[16] },
+
+  // Tarjeta principal — mismo tratamiento que AlertCard / MisFavoritosScreen:
+  // blanco, bordes redondeados grandes, sombra suave, foto arriba a sangre.
+  card: {
+    backgroundColor: C.white,
+    borderRadius: R['2xl'],
+    overflow: 'hidden',
+    ...SH.md,
+  },
+  cardDesktop: { width: '100%', maxWidth: 640, alignSelf: 'center' },
 
   photo: { width: '100%', aspectRatio: 4 / 3, backgroundColor: C.cloud },
   photoPlaceholder: { alignItems: 'center', justifyContent: 'center' },
 
-  body: { padding: S[20], gap: 4 },
+  body: { padding: S[20] },
 
+  titleBlock: { marginBottom: S[20] },
   badge: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
     alignSelf: 'flex-start',
-    paddingHorizontal: 12, paddingVertical: 5,
+    paddingHorizontal: 12, paddingVertical: 6,
     borderRadius: R.full, marginBottom: 10,
   },
+  badgeDot: { width: 6, height: 6, borderRadius: 3 },
   badgeTxt: { fontSize: T.xs, fontWeight: '800', letterSpacing: 0.6 },
 
-  name: { fontSize: T['2xl'], fontWeight: '800', color: C.ink, marginBottom: 12 },
+  name: { fontSize: T['2xl'], fontWeight: '800', color: C.ink },
 
-  row: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
-  rowTxt: { fontSize: T.base, color: C.inkMid, fontWeight: '500' },
+  // Bloque zona/fecha — "well" tintado como los sub-bloques de Mis reportes,
+  // con íconos en chip circular igual que MenuRow de PerfilUsuarioScreen.
+  infoCard: {
+    backgroundColor: C.cloud,
+    borderRadius: R.xl,
+    marginBottom: S[16],
+  },
+  infoRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: S[12] },
+  infoRowDivider: { borderBottomWidth: 1, borderBottomColor: C.border },
+  iconBadge: {
+    width: 36, height: 36, borderRadius: 18,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: C.tealLight,
+  },
+  infoLabel: { fontSize: T.xs, fontWeight: '700', color: C.inkLight, letterSpacing: 0.5, marginBottom: 1 },
+  infoValue: { fontSize: T.base, fontWeight: '600', color: C.ink },
 
-  descWrap: { marginTop: 12, paddingTop: 16, borderTopWidth: 1, borderTopColor: C.border },
+  descCard: { paddingTop: 4 },
   descLabel: { fontSize: T.sm, fontWeight: '700', color: C.inkLight, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 },
   descTxt: { fontSize: T.base, color: C.inkMid, lineHeight: 22 },
 
