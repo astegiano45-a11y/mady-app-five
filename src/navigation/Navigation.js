@@ -19,7 +19,6 @@ import RegisterScreen  from '../screens/RegisterScreen';
 
 // App screens
 import HomeScreen           from '../screens/HomeScreen';
-import ExtraviodosScreen    from '../screens/ExtraviodosScreen';
 import ReportarScreen       from '../screens/ReportarScreen';
 import ComunidadScreen      from '../screens/ComunidadScreen';
 import PerfilUsuarioScreen  from '../screens/PerfilUsuarioScreen';
