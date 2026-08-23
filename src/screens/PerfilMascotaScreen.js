@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
-  TouchableOpacity, Modal, TextInput, KeyboardAvoidingView, Platform, Image, Alert,
+  TouchableOpacity, Modal, TextInput, KeyboardAvoidingView, Platform, Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import Button      from '../components/Button';
 import GoldDivider from '../components/GoldDivider';
+import InfoModal   from '../components/InfoModal';
 import { COLORS, FONTS, RADIUS, SHADOW, SPACING } from '../theme';
 import { actualizarMascota, eliminarMascota, subirFotoMascota } from '../services/mascotasService';
 import { useIsDesktop } from '../hooks/useIsDesktop';
@@ -63,6 +64,9 @@ export default function PerfilMascotaScreen({ navigation, route }) {
   const [showEdit, setShowEdit]   = useState(false);
   const [showDelete, setShowDelete] = useState(false);
   const [saving, setSaving]       = useState(false);
+  // Alert.alert es un no-op en react-native-web (ver InfoModal.js) — sin esto
+  // los 3 catch de abajo fallaban en silencio, sin ningún aviso visible.
+  const [infoMessage, setInfoMessage] = useState(null); // { title, body }
 
   // Campos editables
   const [editName,  setEditName]  = useState(petParam?.name    || '');
@@ -99,7 +103,7 @@ export default function PerfilMascotaScreen({ navigation, route }) {
       setPet(prev => ({ ...prev, ...updated }));
       setStatus(updated.status);
     } catch {
-      Alert.alert('No se pudo actualizar', 'Revisá tu conexión e intentá de nuevo.');
+      setInfoMessage({ title: 'No se pudo actualizar', body: 'Revisá tu conexión e intentá de nuevo.' });
       return;
     }
     navigation.navigate('Reportar', { pet });
@@ -112,7 +116,7 @@ export default function PerfilMascotaScreen({ navigation, route }) {
       setPet(prev => ({ ...prev, ...updated }));
       setStatus(updated.status);
     } catch {
-      Alert.alert('No se pudo actualizar', 'Revisá tu conexión e intentá de nuevo.');
+      setInfoMessage({ title: 'No se pudo actualizar', body: 'Revisá tu conexión e intentá de nuevo.' });
     }
   };
 
@@ -149,7 +153,7 @@ export default function PerfilMascotaScreen({ navigation, route }) {
       // Antes este catch estaba vacío: si el guardado fallaba (p.ej. una
       // columna inexistente), el modal se quedaba abierto sin ningún aviso —
       // parecía que el botón "Guardar" simplemente no hacía nada.
-      Alert.alert('No se pudo guardar', 'Revisá tu conexión e intentá de nuevo.');
+      setInfoMessage({ title: 'No se pudo guardar', body: 'Revisá tu conexión e intentá de nuevo.' });
     }
     setSaving(false);
   };
@@ -164,6 +168,13 @@ export default function PerfilMascotaScreen({ navigation, route }) {
 
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.cream }}>
+
+      <InfoModal
+        visible={!!infoMessage}
+        title={infoMessage?.title}
+        body={infoMessage?.body}
+        onClose={() => setInfoMessage(null)}
+      />
 
       {/* ── Modal confirmar eliminar ── */}
       <Modal visible={showDelete} transparent animationType="fade" onRequestClose={() => setShowDelete(false)}>

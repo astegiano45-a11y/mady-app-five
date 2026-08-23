@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
-  TouchableOpacity, Image, ActivityIndicator, Platform, Modal, Alert,
+  TouchableOpacity, Image, ActivityIndicator, Platform, Modal,
   TextInput, KeyboardAvoidingView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,6 +19,7 @@ import { getMisMascotas, eliminarMascota } from '../services/mascotasService';
 import { getAlertasMias, resolverAlerta } from '../services/alertasService';
 import { getPendingAdoptionRequests, respondAdoptionMatch } from '../services/adoptantService';
 import { supabase } from '../lib/supabase';
+import InfoModal from '../components/InfoModal';
 
 // Antes "Mis reportes" navegaba directo a crear una alerta nueva — nunca
 // mostraba las que ya tenías. Este mapa es el mismo criterio de colores que
@@ -96,6 +97,9 @@ export default function PerfilUsuarioScreen({ navigation }) {
   const [solicitudes,    setSolicitudes]    = useState([]); // solicitudes de adopción pendientes sobre mis mascotas
   const [respondingId,   setRespondingId]   = useState(null); // match_id respondiéndose ahora
   const [phone,          setPhone]          = useState(null); // teléfono guardado en profiles.phone
+  // Alert.alert es un no-op en react-native-web (ver InfoModal.js) — sin esto
+  // los catch de abajo fallaban en silencio, sin ningún aviso visible.
+  const [infoMessage,    setInfoMessage]    = useState(null); // { title, body }
   const [phoneInput,     setPhoneInput]     = useState('');   // valor en edición dentro del modal
   const [phoneError,     setPhoneError]     = useState('');
   const [savingPhone,    setSavingPhone]    = useState(false);
@@ -130,7 +134,7 @@ export default function PerfilUsuarioScreen({ navigation }) {
       setPhone(trimmed || null);
       setActiveModal(null);
     } catch {
-      Alert.alert('No se pudo guardar', 'Revisá tu conexión e intentá de nuevo.');
+      setInfoMessage({ title: 'No se pudo guardar', body: 'Revisá tu conexión e intentá de nuevo.' });
     } finally {
       setSavingPhone(false);
     }
@@ -180,7 +184,7 @@ export default function PerfilUsuarioScreen({ navigation }) {
       await resolverAlerta(id);
       setAlertasMias(prev => prev.map(a => a.id === id ? { ...a, status: 'resolved' } : a));
     } catch {
-      Alert.alert('No se pudo actualizar', 'Revisá tu conexión e intentá de nuevo.');
+      setInfoMessage({ title: 'No se pudo actualizar', body: 'Revisá tu conexión e intentá de nuevo.' });
     }
     setResolvingId(null);
   };
@@ -195,7 +199,7 @@ export default function PerfilUsuarioScreen({ navigation }) {
       await respondAdoptionMatch(matchId, approve);
       setSolicitudes(prev => prev.filter(r => r.match_id !== matchId));
     } catch {
-      Alert.alert('No se pudo actualizar', 'Revisá tu conexión e intentá de nuevo.');
+      setInfoMessage({ title: 'No se pudo actualizar', body: 'Revisá tu conexión e intentá de nuevo.' });
     }
     setRespondingId(null);
   };
@@ -204,6 +208,13 @@ export default function PerfilUsuarioScreen({ navigation }) {
 
   return (
     <>
+    <InfoModal
+      visible={!!infoMessage}
+      title={infoMessage?.title}
+      body={infoMessage?.body}
+      onClose={() => setInfoMessage(null)}
+    />
+
     {/* Modal confirmar eliminar mascota */}
     <Modal visible={!!confirmDelete} transparent animationType="fade" onRequestClose={() => setConfirmDelete(null)}>
       <TouchableOpacity style={s.modalBackdrop} activeOpacity={1} onPress={() => setConfirmDelete(null)}>
