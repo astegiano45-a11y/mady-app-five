@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ActivityIndicator, Alert, TextInput, KeyboardAvoidingView, Platform,
+  ActivityIndicator, Modal, TextInput, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { C } from '../theme/colors';
@@ -63,6 +63,12 @@ export default function PerfilAdoptanteScreen({ navigation, route }) {
   const isDesktop = useIsDesktop();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  // Reemplaza Alert.alert en este screen: react-native-web (lo que corre esta
+  // app en producción) implementa Alert.alert como un no-op total -- "static
+  // alert() {}" -- así que el guardado funcionaba bien contra la base pero la
+  // persona nunca veía "Éxito" ni el botón OK (que hacía navigation.goBack())
+  // se disparaba — quedaba parada en la pantalla sin ningún aviso.
+  const [infoMessage, setInfoMessage] = useState(null); // { title, body, onDismiss? }
 
   const [dogSize, setDogSize] = useState('any');
   const [experienceLevel, setExperienceLevel] = useState('some');
@@ -119,14 +125,14 @@ export default function PerfilAdoptanteScreen({ navigation, route }) {
 
   const save = async () => {
     if (!canSave) {
-      Alert.alert('Faltan datos', 'Completá el motivo, el plan ante un problema de comportamiento y confirmá que podés asumir el gasto mensual.');
+      setInfoMessage({ title: 'Faltan datos', body: 'Completá el motivo, el plan ante un problema de comportamiento y confirmá que podés asumir el gasto mensual.' });
       return;
     }
     try {
       setSaving(true);
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        Alert.alert('Error', 'No hay usuario logueado');
+        setInfoMessage({ title: 'Error', body: 'No hay usuario logueado' });
         return;
       }
 
@@ -152,15 +158,19 @@ export default function PerfilAdoptanteScreen({ navigation, route }) {
         await createAdoptantProfile(user.id, data);
       }
 
-      Alert.alert('Éxito', 'Perfil actualizado', [
-        { text: 'OK', onPress: () => navigation.goBack() },
-      ]);
+      setInfoMessage({ title: 'Éxito', body: 'Perfil actualizado', onDismiss: () => navigation.goBack() });
     } catch (err) {
-      Alert.alert('Error', 'No se pudo guardar el perfil');
+      setInfoMessage({ title: 'Error', body: 'No se pudo guardar el perfil' });
       console.warn('save error:', err);
     } finally {
       setSaving(false);
     }
+  };
+
+  const dismissInfo = () => {
+    const onDismiss = infoMessage?.onDismiss;
+    setInfoMessage(null);
+    onDismiss?.();
   };
 
   if (loading) {
@@ -173,6 +183,18 @@ export default function PerfilAdoptanteScreen({ navigation, route }) {
 
   return (
     <KeyboardAvoidingView style={[st.screen, { paddingTop: insets.top }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <Modal visible={!!infoMessage} transparent animationType="fade" onRequestClose={dismissInfo}>
+        <TouchableOpacity style={st.modalBackdrop} activeOpacity={1} onPress={dismissInfo}>
+          <View style={st.modalBox}>
+            <Text style={st.modalTitle}>{infoMessage?.title}</Text>
+            <Text style={st.modalSub}>{infoMessage?.body}</Text>
+            <TouchableOpacity style={st.modalBtn} onPress={dismissInfo}>
+              <Text style={st.modalBtnTxt}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
       <View style={st.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Text style={st.back}>‹</Text>
@@ -361,4 +383,12 @@ const st = StyleSheet.create({
   saveBtn: { backgroundColor: C.teal, borderRadius: R.xl, paddingVertical: 14, alignItems: 'center', marginTop: 12 },
   saveBtnDisabled: { opacity: 0.6 },
   saveBtnTxt: { fontSize: T.base, fontWeight: '700', color: C.white },
+
+  // Modal informativo (reemplaza Alert.alert — ver comentario junto a infoMessage)
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center', padding: 32 },
+  modalBox:      { backgroundColor: C.white, borderRadius: R['2xl'], padding: S[24], width: '100%', maxWidth: 320 },
+  modalTitle:    { fontSize: T.lg, fontWeight: '800', color: C.ink, marginBottom: 6, textAlign: 'center' },
+  modalSub:      { fontSize: T.sm, color: C.inkLight, marginBottom: S[20], textAlign: 'center', lineHeight: 20 },
+  modalBtn:      { backgroundColor: C.teal, borderRadius: R.xl, paddingVertical: 12, alignItems: 'center' },
+  modalBtnTxt:   { fontSize: T.sm, fontWeight: '700', color: C.white },
 });
