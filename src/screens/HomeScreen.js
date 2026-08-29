@@ -25,6 +25,7 @@ import { R, S, SH }  from '../theme/spacing';
 import { T }         from '../theme/typography';
 import GlassCard     from '../components/GlassCard';
 import AlertCard     from '../components/AlertCard';
+import BannerCarousel from '../components/BannerCarousel';
 import MadyButton    from '../components/MadyButton';
 import OrganicBackdrop from '../components/OrganicBackdrop';
 import { useIsDesktop } from '../hooks/useIsDesktop';
@@ -484,6 +485,11 @@ export default function HomeScreen({ navigation }) {
             ItemSeparatorComponent={() => <View style={{ width: 12 }} />}
           />
         )}
+
+        {/* ═══════════════════════════════════ BANNERS (ads) ══ */}
+        <Animated.View style={{ opacity: fade }}>
+          <BannerCarousel isDesktop={isDesktop} />
+        </Animated.View>
 
         {/* ══════════════════════════════════════ MIS MASCOTAS ══ */}
         <View style={s.section}>
