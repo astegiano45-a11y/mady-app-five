@@ -90,7 +90,7 @@ function QuickAction({ item, onPress, isDesktop }) {
         style={[qa.card, isDesktop && qa.cardDesktop, { backgroundColor: item.bg, borderColor: item.color + '40', transform: [{ scale }] }]}
       >
         <View style={[qa.iconWrap, isDesktop && qa.iconWrapDesktop, { backgroundColor: item.color + '20' }]}>
-          <Icon size={20} color={item.color} strokeWidth={1.75} />
+          <Icon size={isDesktop ? 32 : 20} color={item.color} strokeWidth={1.75} />
         </View>
         <Text style={[qa.label, isDesktop && qa.labelDesktop, { color: item.color }]}>{item.label}</Text>
       </Animated.View>
@@ -105,11 +105,13 @@ const qa = StyleSheet.create({
   card:    { alignItems:'center', paddingVertical: S[10], paddingHorizontal: S[8], borderRadius: R.xl, gap: S[6], borderWidth: 1 },
   iconWrap:{ width:40, height:40, borderRadius: R.lg, alignItems:'center', justifyContent:'center' },
   label:   { fontSize: 11, fontWeight:'700', textAlign:'center' },
-  // Desktop: mismo tamaño compacto que mobile — solo el cap de ancho de
-  // actionsGridDesktop evita que queden franjas finitas.
-  cardDesktop:     { paddingVertical: S[10], paddingHorizontal: S[10], gap: S[6] },
-  iconWrapDesktop: { width: 40, height: 40, borderRadius: R.lg },
-  labelDesktop:    { fontSize: 12 },
+  // Desktop: la columna es mucho más ancha → cada card queda más ancha (~355px
+  // en el ancho de contenido tope). Se escala también en alto — padding
+  // vertical generoso, ícono y texto más grandes — para que la proporción
+  // quede ~1.8:1 (rectángulo prolijo) y NO un carril achatado.
+  cardDesktop:     { paddingVertical: S[48], paddingHorizontal: S[20], gap: S[14], borderRadius: R['2xl'] },
+  iconWrapDesktop: { width: 64, height: 64, borderRadius: R.xl },
+  labelDesktop:    { fontSize: 15 },
 });
 
 function ActivityRow({ item, onPress }) {
@@ -405,6 +407,53 @@ export default function HomeScreen({ navigation }) {
   const greeting = hour < 12 ? 'Buenos días' : hour < 19 ? 'Buenas tardes' : 'Buenas noches';
   const nav = (s) => () => navigation.navigate(s);
 
+  // ── Bloques del Home (una sola columna, apilados) ─────────────────────────
+  const STATS = [
+    { val: mascotas.length,  lbl:'Mis mascotas', color: C.teal     },
+    { val: '12',             lbl:'Alertas hoy',  color: C.sunset   },
+    { val: '3',              lbl:'Encontradas',  color: C.tealDeep },
+  ];
+
+  const heroSection = (
+    <>
+      {/* ─────────────────────────────────────────────────── HERO ── */}
+      <Animated.View style={{ opacity: fade, transform: [{ translateY: slide }] }}>
+        <HeroCarousel onPressAlerts={nav('Mapa')} onPressReport={nav('Reportar')} isDesktop={isDesktop} />
+      </Animated.View>
+
+      {/* ───────────────────────────────────────────── ACCIONES ── */}
+      <Animated.View style={[s.groupRow, isDesktop && s.groupRowDesktop, { opacity: fade }]}>
+        <View style={[s.actionsGrid, isDesktop && s.actionsGridDesktop]}>
+          {ACTIONS.map((item) => (
+            <QuickAction key={item.key} item={item} onPress={nav(item.screen)} isDesktop={isDesktop} />
+          ))}
+        </View>
+      </Animated.View>
+
+      {/* ───────────────────────────────────────────────── STATS ── */}
+      {/* Contornos en turquesa / naranja (los colores del header y el hero). */}
+      <Animated.View style={[{ opacity: fade }, s.statsRow, isDesktop && s.statsRowDesktop]}>
+        {STATS.map((st) => (
+          <View key={st.lbl} style={[s.statCard, isDesktop && s.statCardDesktop, { borderColor: st.color }]}>
+            <Text style={[s.statVal, isDesktop && s.statValDesktop, { color: st.color }]}>{st.val}</Text>
+            <Text style={[s.statLbl, isDesktop && s.statLblDesktop]}>{st.lbl}</Text>
+          </View>
+        ))}
+      </Animated.View>
+    </>
+  );
+
+  const misMascotasList = mascotas.length === 0
+    ? <EmptyPets onPress={nav('AgregarMascota')} />
+    : mascotas.map((p) => (
+        <MyPetRow key={p.id} pet={p}
+          onPress={() => navigation.navigate('PerfilMascota', { pet: p })} />
+      ));
+
+  const actividadRows = actividad.map((item) => (
+    <ActivityRow key={item.id} item={item} onPress={nav('Comunidad')} />
+  ));
+
   return (
     <View style={s.screen}>
       <OrganicBackdrop />
@@ -434,41 +483,11 @@ export default function HomeScreen({ navigation }) {
           </LinearGradient>
         </Animated.View>
 
-        {/* ══ SECCIÓN HERO — hero + categorías + stats agrupados sobre un
-             panel turquesa muy claro, para que se lean como UNA composición
-             y no como piezas sueltas flotando sobre el gris de la página. ══ */}
+        {/* ══ SECCIÓN HERO — hero + categorías + stats en el panel turquesa
+             claro, una sola columna centrada. En desktop la columna se
+             ensancha bien para no dejar franjas de vacío a los costados. ══ */}
         <View style={[s.heroGroup, isDesktop && s.heroGroupDesktop]}>
-
-          {/* ─────────────────────────────────────────────────── HERO ── */}
-          <Animated.View style={{ opacity: fade, transform: [{ translateY: slide }] }}>
-            <HeroCarousel onPressAlerts={nav('Mapa')} onPressReport={nav('Reportar')} isDesktop={isDesktop} />
-          </Animated.View>
-
-          {/* ───────────────────────────────────────────── ACCIONES ── */}
-          <Animated.View style={[s.groupRow, isDesktop && s.groupRowDesktop, { opacity: fade }]}>
-            <View style={[s.actionsGrid, isDesktop && s.actionsGridDesktop]}>
-              {ACTIONS.map((item) => (
-                <QuickAction key={item.key} item={item} onPress={nav(item.screen)} isDesktop={isDesktop} />
-              ))}
-            </View>
-          </Animated.View>
-
-          {/* ───────────────────────────────────────────────── STATS ── */}
-          {/* Contornos en turquesa / naranja (los colores del header y el
-              hero), no celeste/verde/naranja sueltos. */}
-          <Animated.View style={[{ opacity: fade }, s.statsRow, isDesktop && s.statsRowDesktop]}>
-            {[
-              { val: mascotas.length,  lbl:'Mis mascotas', color: C.teal     },
-              { val: '12',             lbl:'Alertas hoy',  color: C.sunset   },
-              { val: '3',              lbl:'Encontradas',  color: C.tealDeep },
-            ].map((st) => (
-              <View key={st.lbl} style={[s.statCard, isDesktop && s.statCardDesktop, { borderColor: st.color }]}>
-                <Text style={[s.statVal, isDesktop && s.statValDesktop, { color: st.color }]}>{st.val}</Text>
-                <Text style={[s.statLbl, isDesktop && s.statLblDesktop]}>{st.lbl}</Text>
-              </View>
-            ))}
-          </Animated.View>
-
+          {heroSection}
         </View>
 
         {/* ═══════════════════════════════════════ CERCA DE TI ══ */}
@@ -505,22 +524,14 @@ export default function HomeScreen({ navigation }) {
         {/* ══════════════════════════════════════ MIS MASCOTAS ══ */}
         <View style={s.section}>
           <SectionHead title="Mis mascotas" action="＋ Agregar" onAction={nav('AgregarMascota')} />
-          {mascotas.length === 0
-            ? <EmptyPets onPress={nav('AgregarMascota')} />
-            : mascotas.map((p) => (
-                <MyPetRow key={p.id} pet={p}
-                  onPress={() => navigation.navigate('PerfilMascota', { pet: p })} />
-              ))
-          }
+          {misMascotasList}
         </View>
 
         {/* ══════════════════════════════════ ACTIVIDAD RECIENTE ══ */}
         <View style={s.section}>
           <SectionHead title="Actividad reciente" onAction={nav('Comunidad')} />
           <GlassCard padding={S[16]} shadow="sm" radius={R.xl}>
-            {actividad.map((item) => (
-              <ActivityRow key={item.id} item={item} onPress={nav('Comunidad')} />
-            ))}
+            {actividadRows}
           </GlassCard>
         </View>
 
@@ -579,7 +590,11 @@ const s = StyleSheet.create({
     paddingTop: S[10],
     paddingBottom: S[14],
   },
-  heroGroupDesktop: { maxWidth: 920, alignSelf: 'center', width: '100%' },
+  // Desktop: la columna se ensancha — el panel llena casi todo el ancho de
+  // contenido (que DesktopLayout ya topea y centra), solo un margen chico a
+  // los lados, en vez de quedar angosto con franjas de vacío enormes.
+  heroGroupDesktop: { alignSelf: 'stretch', marginHorizontal: S[16], marginTop: S[16] },
+
   // Fila de categorías dentro del panel. En mobile un gutter chico extra;
   // en desktop CERO — así hero, categorías y stats comparten exactamente el
   // mismo ancho y márgenes (solo el padding del panel), alineados en columna.
@@ -603,7 +618,7 @@ const s = StyleSheet.create({
   // bloque. `aspectRatio` fijo → el encuadre de "cover" no cambia con el ancho.
   heroCardDesktop: {
     width: '100%',
-    aspectRatio: 2.15,
+    aspectRatio: 2.7,
   },
 
   // Live badge
@@ -642,21 +657,24 @@ const s = StyleSheet.create({
   },
   actionsGrid: { flexDirection:'row', gap: S[8] },
   // Desktop: llena el ancho del panel (mismo ancho que el hero y los stats).
-  actionsGridDesktop: { width: '100%', gap: S[12] },
+  // Gap más grande acorde a la columna más ancha.
+  actionsGridDesktop: { width: '100%', gap: S[16] },
 
   // Stats — dentro del panel. Mobile: gutter chico. Desktop: cero (alineado
-  // con hero y categorías, ver groupRowDesktop).
+  // con hero y categorías).
   statsRow:    { flexDirection:'row', gap: S[8], paddingHorizontal: S[4], marginTop: S[8] },
-  statsRowDesktop: { width: '100%', gap: S[12], paddingHorizontal: 0 },
-  // Contorno completo en el color del stat (ver imagen de referencia). En
-  // RN-web el borderWidth sí respeta el border-radius, así que no hace falta
-  // el truco de la franja absoluta. Card baja: número y etiqueta pegados.
+  statsRowDesktop: { width: '100%', gap: S[16], paddingHorizontal: 0, marginTop: S[12] },
+  // Contorno completo en el color del stat. Card baja: número y etiqueta
+  // pegados.
   statCard:    { flex:1, flexBasis:0, backgroundColor: C.white, borderRadius: R.lg,
                  paddingVertical: S[10], paddingHorizontal: S[8], alignItems:'center',
                  borderWidth: 1.5, ...SH.xs },
-  statCardDesktop: { paddingVertical: S[10] },
+  // Desktop: solo 3 cards en el ancho del panel → cada una queda MUY ancha
+  // (~475px). Padding vertical grande + número prominente para que quede como
+  // un tile de KPI (~2.2:1) y no una franja fina y estirada.
+  statCardDesktop: { paddingVertical: S[64], borderRadius: R['2xl'], borderWidth: 2 },
   statVal:     { fontSize:22, fontWeight:'900', lineHeight:24 },
-  statValDesktop: { fontSize:24, lineHeight:26 },
+  statValDesktop: { fontSize:46, lineHeight:50 },
   statLbl:     { fontSize:10, color: C.inkMuted, marginTop:1, fontWeight:'500', textAlign:'center' },
-  statLblDesktop: { fontSize:11, marginTop: 1 },
+  statLblDesktop: { fontSize:15, marginTop: S[6] },
 });

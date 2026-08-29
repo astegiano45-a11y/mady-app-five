@@ -120,7 +120,7 @@ const st = StyleSheet.create({
   },
   content: {
     flex: 1,
-    maxWidth: 1400, // Ancho máximo
+    maxWidth: 1520, // Ancho máximo del área de contenido en desktop.
     alignSelf: 'center',
     width: '100%',
   },
