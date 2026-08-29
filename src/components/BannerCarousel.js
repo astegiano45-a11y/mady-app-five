@@ -118,9 +118,9 @@ const s = StyleSheet.create({
     ...SH.md,
   },
   cardDesktop: {
-    maxWidth: 1100,
+    maxWidth: 1560,
     alignSelf: 'center',
-    aspectRatio: 5,           // más panorámico en desktop, como el hero
+    aspectRatio: 6.5,         // panorámico en desktop; aprovecha el ancho
   },
   dots: {
     position: 'absolute',
