@@ -408,28 +408,30 @@ export default function HomeScreen({ navigation }) {
     <View style={s.screen}>
       <OrganicBackdrop />
 
-      {/* ═══════════════════════════════════════════════════ HEADER ══ */}
-      {/* Degradé teal → sunset (paleta bandera Tierra del Fuego), en vez del
-          header blanco liso que había antes. */}
-      <Animated.View style={{ opacity: fade }}>
-        <LinearGradient
-          colors={[C.teal, C.sunset]}
-          start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-          style={[s.header, { paddingTop: insets.top + 14 }]}
-        >
-          <View style={{ gap: 2 }}>
-            <Text style={s.greeting}>{greeting} 👋</Text>
-            <Text style={s.name}>{firstName}</Text>
-            <Text style={s.nameSub}>¿Cómo estás hoy?</Text>
-          </View>
-          <TouchableOpacity style={s.bellBtn} onPress={nav('Notificaciones')}>
-            <Bell size={20} color={C.white} strokeWidth={1.75} />
-            <View style={s.bellDot} />
-          </TouchableOpacity>
-        </LinearGradient>
-      </Animated.View>
-
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 110 }}>
+
+        {/* ═══════════════════════════════════════════════════ HEADER ══ */}
+        {/* Degradé teal → sunset (paleta bandera Tierra del Fuego), en vez del
+            header blanco liso que había antes.
+            Va DENTRO del ScrollView a propósito: es contenido normal, se va
+            hacia arriba y desaparece al scrollear (no queda fijo/sticky). */}
+        <Animated.View style={{ opacity: fade }}>
+          <LinearGradient
+            colors={[C.teal, C.sunset]}
+            start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+            style={[s.header, { paddingTop: insets.top + 14 }]}
+          >
+            <View style={{ gap: 2 }}>
+              <Text style={s.greeting}>{greeting} 👋</Text>
+              <Text style={s.name}>{firstName}</Text>
+              <Text style={s.nameSub}>¿Cómo estás hoy?</Text>
+            </View>
+            <TouchableOpacity style={s.bellBtn} onPress={nav('Notificaciones')}>
+              <Bell size={20} color={C.white} strokeWidth={1.75} />
+              <View style={s.bellDot} />
+            </TouchableOpacity>
+          </LinearGradient>
+        </Animated.View>
 
         {/* ═══════════════════════════════════════════════════ HERO ══ */}
         <Animated.View style={{ opacity: fade, transform: [{ translateY: slide }] }}>
