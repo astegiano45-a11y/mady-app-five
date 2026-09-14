@@ -15,6 +15,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   View, StyleSheet, Pressable, Animated, Image, Platform, Linking,
 } from 'react-native';
+import { useVideoPlayer, VideoView } from 'expo-video';
 
 import { getBannerAds } from '../services/bannerAdsService';
 import { C }            from '../theme/colors';
@@ -36,6 +37,33 @@ function openLink(url) {
 function BannerSlide({ banner, active, onPress }) {
   const opacity = useRef(new Animated.Value(active ? 1 : 0)).current;
   const [failed, setFailed] = useState(false);
+  const isVideo = banner.tipo === 'video';
+
+  // Player siempre creado (regla de hooks); si no es video, source null → idle.
+  // Se crea igual estando inactiva (así el crossfade no arranca en negro
+  // esperando buffer), pero play/pause están atados a `active`: solo la
+  // slide visible reproduce — el resto queda pausada.
+  const player = useVideoPlayer(isVideo ? banner.imagen_url : null, (p) => {
+    p.loop = true;
+    p.muted = true;
+  });
+
+  useEffect(() => {
+    if (!isVideo) return;
+    if (active) {
+      player.play();
+    } else {
+      player.pause();
+    }
+  }, [active, isVideo, player]);
+
+  useEffect(() => {
+    if (!isVideo) return;
+    const sub = player.addListener('statusChange', (status) => {
+      if (status === 'error') setFailed(true);
+    });
+    return () => sub.remove();
+  }, [player, isVideo]);
 
   useEffect(() => {
     Animated.timing(opacity, {
@@ -52,12 +80,22 @@ function BannerSlide({ banner, active, onPress }) {
     >
       {!failed && (
         <Pressable style={StyleSheet.absoluteFillObject} onPress={onPress}>
-          <Image
-            source={{ uri: banner.imagen_url }}
-            style={StyleSheet.absoluteFillObject}
-            resizeMode="cover"
-            onError={() => setFailed(true)}
-          />
+          {isVideo ? (
+            <VideoView
+              player={player}
+              style={[StyleSheet.absoluteFillObject, { width: '100%', height: '100%' }]}
+              contentFit="cover"
+              nativeControls={false}
+              pointerEvents="none"
+            />
+          ) : (
+            <Image
+              source={{ uri: banner.imagen_url }}
+              style={StyleSheet.absoluteFillObject}
+              resizeMode="cover"
+              onError={() => setFailed(true)}
+            />
+          )}
         </Pressable>
       )}
     </Animated.View>

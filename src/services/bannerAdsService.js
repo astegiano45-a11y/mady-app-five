@@ -7,7 +7,7 @@ export async function getBannerAds() {
   try {
     const { data, error } = await supabase
       .from('banner_ads')
-      .select('id, imagen_url, link_url, orden')
+      .select('id, imagen_url, link_url, orden, tipo')
       .eq('activo', true)
       .order('orden', { ascending: true });
     if (error) throw error;
