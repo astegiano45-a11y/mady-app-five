@@ -20,9 +20,13 @@ const BG      = '#FFFFFF';
 const BORDER  = '#EEF2F7';
 const ACTIVE_BG = 'rgba(24,197,200,0.10)';
 
-const ICON_SIZE        = 22;
-const ICON_STROKE      = 1.75;
-const ICON_SIZE_ACTIVE = 23;
+const ICON_SIZE     = 22;
+const ICON_STROKE   = 1.75;
+// Dock-style: el ícono activo se ve permanentemente más grande (scale, no un
+// tamaño de ícono distinto) — así la transición entre activo/inactivo es un
+// spring bounce fluido en vez de un salto de tamaño instantáneo.
+const ACTIVE_SCALE  = 1.15;
+const INACTIVE_SCALE = 1;
 
 const TABS = [
   { key: 'Inicio',    icon: House,        label: 'Inicio'     },
@@ -109,14 +113,30 @@ const sos = StyleSheet.create({
 
 // ── Tab normal ────────────────────────────────────────────────────────────────
 function TabItem({ tab, active, onPress }) {
-  const scale = useRef(new Animated.Value(1)).current;
+  // Press feedback (momentáneo, como el resto de la app) y el tamaño
+  // "activo" (permanente mientras esa pestaña es la actual) son dos
+  // Animated.Value separados que se combinan con Animated.multiply — así
+  // tocar una pestaña inactiva la achica un toque (0.88) sin pisar el
+  // salto elástico al activo (1.15) cuando efectivamente navega ahí.
+  const pressScale  = useRef(new Animated.Value(1)).current;
+  const activeScale = useRef(new Animated.Value(active ? ACTIVE_SCALE : INACTIVE_SCALE)).current;
 
-  const handlePressIn  = () => Animated.spring(scale, { toValue: 0.88, useNativeDriver: true, speed: 80 }).start();
-  const handlePressOut = () => Animated.spring(scale, { toValue: 1,    useNativeDriver: true, speed: 80 }).start();
+  const handlePressIn  = () => Animated.spring(pressScale, { toValue: 0.88, useNativeDriver: true, speed: 80 }).start();
+  const handlePressOut = () => Animated.spring(pressScale, { toValue: 1,    useNativeDriver: true, speed: 80 }).start();
 
-  const Icon     = tab.icon;
-  const iconSize = active ? ICON_SIZE_ACTIVE : ICON_SIZE;
-  const color    = active ? TEAL : MUTED;
+  useEffect(() => {
+    // Spring bounce al pasar a activo o dejar de estarlo — no un salto
+    // brusco. bounciness da el "overshoot" elástico típico de un dock.
+    Animated.spring(activeScale, {
+      toValue: active ? ACTIVE_SCALE : INACTIVE_SCALE,
+      useNativeDriver: true,
+      speed: 14,
+      bounciness: 10,
+    }).start();
+  }, [active]);
+
+  const Icon  = tab.icon;
+  const color = active ? TEAL : MUTED;
 
   return (
     <TouchableOpacity
@@ -126,8 +146,13 @@ function TabItem({ tab, active, onPress }) {
       onPress={onPress}
       activeOpacity={1}
     >
-      <Animated.View style={[ti.inner, active && ti.innerActive, { transform: [{ scale }] }]}>
-        <Icon size={iconSize} color={color} strokeWidth={ICON_STROKE} />
+      <Animated.View
+        style={[
+          ti.inner, active && ti.innerActive,
+          { transform: [{ scale: Animated.multiply(pressScale, activeScale) }] },
+        ]}
+      >
+        <Icon size={ICON_SIZE} color={color} strokeWidth={ICON_STROKE} />
       </Animated.View>
       <Text style={[ti.label, active && ti.labelActive]}>
         {tab.label}

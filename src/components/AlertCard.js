@@ -13,6 +13,7 @@ import { Heart, Clock, Navigation2 } from 'lucide-react-native';
 import { C }        from '../theme/colors';
 import { R, S, SH } from '../theme/spacing';
 import { T }        from '../theme/typography';
+import TouchGlow    from './TouchGlow';
 
 // ── Tipos — solo teal / coral / verde / rojo ──────────────────────────────────
 const TYPE = {
@@ -34,7 +35,8 @@ const PHOTO_H = Math.round(CARD_H * 0.70);   // 161px
 const STRIP_H = CARD_H - PHOTO_H;             // 69px
 
 export default function AlertCard({ item, onPress, width = CARD_W, index = 0 }) {
-  const scale = useRef(new Animated.Value(1)).current;
+  const scale   = useRef(new Animated.Value(1)).current;
+  const glowRef = useRef(null);
   const [liked, setLiked] = useState(false);
   // Antes solo caía al placeholder si photo_url venía null/vacío — un link
   // roto (foto borrada del hosting, etc.) se intentaba cargar igual y
@@ -68,8 +70,13 @@ export default function AlertCard({ item, onPress, width = CARD_W, index = 0 }) 
     ? (typeof item.photo === 'string' ? { uri: item.photo } : item.photo)
     : { uri: PLACEHOLDER[item.type] || PLACEHOLDER.lost };
 
-  const pressIn  = () => Animated.spring(scale, { toValue: 0.96, useNativeDriver: true, speed: 60 }).start();
-  const pressOut = () => Animated.spring(scale, { toValue: 1,    useNativeDriver: true, speed: 60 }).start();
+  const pressIn = (e) => {
+    Animated.spring(scale, { toValue: 0.96, useNativeDriver: true, speed: 60 }).start();
+    // Glow "SpotlightCard" — nace en el punto exacto del toque, no en el
+    // centro; equivalente táctil de seguir al mouse.
+    glowRef.current?.trigger(e.nativeEvent.locationX, e.nativeEvent.locationY);
+  };
+  const pressOut = () => Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 60 }).start();
 
   const toggleLike = () => {
     setLiked((v) => !v);
@@ -149,6 +156,7 @@ export default function AlertCard({ item, onPress, width = CARD_W, index = 0 }) 
           </View>
         </View>
 
+        <TouchGlow ref={glowRef} width={width} height={CARD_H} color={C.teal} />
       </Animated.View>
     </TouchableOpacity>
   );

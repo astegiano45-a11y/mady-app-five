@@ -28,6 +28,7 @@ import AlertCard     from '../components/AlertCard';
 import BannerCarousel from '../components/BannerCarousel';
 import MadyButton    from '../components/MadyButton';
 import OrganicBackdrop from '../components/OrganicBackdrop';
+import TouchGlow     from '../components/TouchGlow';
 import { useIsDesktop } from '../hooks/useIsDesktop';
 
 // ── Assets hero carousel ─────────────────────────────────────────────────────
@@ -77,7 +78,12 @@ const ACTIONS = [
 // ─────────────────────────────────────────────────────────────────────────────
 
 function QuickAction({ item, onPress, isDesktop, index = 0 }) {
-  const scale = useRef(new Animated.Value(1)).current;
+  const scale   = useRef(new Animated.Value(1)).current;
+  const glowRef = useRef(null);
+  // Tamaño real de la card en px — hace falta para el glow (SVG necesita
+  // width/height concretos) porque acá, a diferencia de AlertCard, el
+  // ancho es flex:1 y no se conoce hasta que el layout corre.
+  const [size, setSize] = useState(null);
   // Entrada escalonada — mismo criterio que AlertCard en "Cerca de ti":
   // fade 580ms + slide 500ms con delay incremental de 70ms por índice.
   // Acá el slide es vertical (translateY, como el hero) en vez de
@@ -96,14 +102,20 @@ function QuickAction({ item, onPress, isDesktop, index = 0 }) {
     ]).start();
   }, []);
 
+  const handlePressIn = (e) => {
+    Animated.spring(scale, { toValue: 0.92, useNativeDriver: true, speed: 80 }).start();
+    glowRef.current?.trigger(e.nativeEvent.locationX, e.nativeEvent.locationY);
+  };
+
   return (
     <Pressable
-      onPressIn={() => Animated.spring(scale, { toValue: 0.92, useNativeDriver: true, speed: 80 }).start()}
-      onPressOut={() => Animated.spring(scale, { toValue: 1,    useNativeDriver: true, speed: 80 }).start()}
+      onPressIn={handlePressIn}
+      onPressOut={() => Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 80 }).start()}
       onPress={onPress}
       style={{ flex: 1, flexBasis: 0 }}
     >
       <Animated.View
+        onLayout={(e) => setSize({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height })}
         style={[
           qa.card, isDesktop && qa.cardDesktop,
           { backgroundColor: item.bg, borderColor: item.color + '40' },
@@ -114,6 +126,10 @@ function QuickAction({ item, onPress, isDesktop, index = 0 }) {
           <Icon size={isDesktop ? 32 : 20} color={item.color} strokeWidth={1.75} />
         </View>
         <Text style={[qa.label, isDesktop && qa.labelDesktop, { color: item.color }]}>{item.label}</Text>
+
+        {size && (
+          <TouchGlow ref={glowRef} width={size.width} height={size.height} color={item.color} />
+        )}
       </Animated.View>
     </Pressable>
   );
@@ -164,7 +180,8 @@ const qa = StyleSheet.create({
   // padding mínimo, sin aire de sobra arriba/abajo del ícono + texto.
   // Contorno tenue en el color de la categoría — mismo tratamiento que las
   // cards de stats (cohesión) y hace que "Adopción" no se funda con el panel.
-  card:    { alignItems:'center', paddingVertical: S[10], paddingHorizontal: S[8], borderRadius: R.xl, gap: S[6], borderWidth: 1 },
+  // overflow:hidden recorta el glow del toque a las esquinas redondeadas
+  card:    { alignItems:'center', paddingVertical: S[10], paddingHorizontal: S[8], borderRadius: R.xl, gap: S[6], borderWidth: 1, overflow: 'hidden' },
   iconWrap:{ width:40, height:40, borderRadius: R.lg, alignItems:'center', justifyContent:'center' },
   label:   { fontSize: 11, fontWeight:'700', textAlign:'center' },
   // Desktop: la columna es mucho más ancha → cada card queda más ancha (~355px
