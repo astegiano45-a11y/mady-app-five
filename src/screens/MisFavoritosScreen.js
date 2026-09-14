@@ -91,7 +91,12 @@ export default function MisFavoritosScreen({ navigation }) {
           showsVerticalScrollIndicator={false}
           renderItem={({ item }) => (
             <TouchableOpacity
-              style={st.card}
+              // maxWidth clava la card a su cuota real de columna: sin esto,
+              // una fila incompleta (menos favoritos que numColumns) deja
+              // que flex:1 estire la card sola al 100% de la fila y, con
+              // photo:aspectRatio:1, la foto queda gigante (mismo bug que
+              // en EncontradosScreen).
+              style={[st.card, { maxWidth: `${100 / numColumns}%` }]}
               activeOpacity={0.9}
               onPress={() => navigation.navigate('MascotaDetalle', { id: item.id })}
             >

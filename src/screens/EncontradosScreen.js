@@ -17,9 +17,19 @@ function formatTime(ts) {
   return `${Math.floor(diff / 1440)} días`;
 }
 
-function PetCard({ item, onPress }) {
+function PetCard({ item, onPress, numColumns }) {
   return (
-    <TouchableOpacity style={st.card} onPress={onPress} activeOpacity={0.85}>
+    <TouchableOpacity
+      // `card` es flex:1 para repartirse el ancho de la fila entre los ítems
+      // presentes. Si la fila queda incompleta (menos ítems que numColumns
+      // — el caso típico con pocas alertas), flex:1 sin tope estira la card
+      // sola al 100% del ancho, y con `photo: aspectRatio:1` eso vuelve la
+      // foto/placeholder gigante y empuja nombre/descripción fuera de vista.
+      // maxWidth la clava a su cuota real de columna pase lo que pase.
+      style={[st.card, { maxWidth: `${100 / numColumns}%` }]}
+      onPress={onPress}
+      activeOpacity={0.85}
+    >
       {item.photo_url
         ? <Image source={{ uri: item.photo_url }} style={st.photo} resizeMode="cover" />
         : <View style={[st.photo, st.photoPlaceholder]}><Text style={{ fontSize: 40 }}>🐾</Text></View>
@@ -86,7 +96,7 @@ export default function EncontradosScreen({ navigation }) {
           contentContainerStyle={[st.list, isDesktop && st.listDesktop]}
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={C.found} />}
-          renderItem={({ item }) => <PetCard item={item} onPress={() => {}} />}
+          renderItem={({ item }) => <PetCard item={item} numColumns={numColumns} onPress={() => {}} />}
           ListEmptyComponent={
             <View style={st.center}>
               <Text style={{ fontSize: 48 }}>🔍</Text>
