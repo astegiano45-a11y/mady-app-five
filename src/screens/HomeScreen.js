@@ -496,7 +496,12 @@ export default function HomeScreen({ navigation }) {
   const heroSection = (
     <>
       {/* ─────────────────────────────────────────────────── HERO ── */}
-      <Animated.View style={{ opacity: fade, transform: [{ translateY: slide }] }}>
+      {/* Sangra a los bordes del panel heroGroup con márgenes negativos que
+          cancelan exactamente su padding (paddingTop/paddingHorizontal: 10) —
+          así el hero llega a la esquina redondeada del panel en vez de dejar
+          ver su fondo celeste alrededor. Categorías y stats, más abajo, sí
+          mantienen ese padding/gutter (es el diseño del panel agrupador). */}
+      <Animated.View style={[s.heroBleed, { opacity: fade, transform: [{ translateY: slide }] }]}>
         <HeroCarousel onPressAlerts={nav('Mapa')} onPressReport={nav('Reportar')} isDesktop={isDesktop} />
       </Animated.View>
 
@@ -680,9 +685,21 @@ const s = StyleSheet.create({
   groupRow:        { marginTop: S[10], paddingHorizontal: S[4] },
   groupRowDesktop: { paddingHorizontal: 0 },
 
+  // Cancela el padding de heroGroup (paddingTop/paddingHorizontal: 10) solo
+  // para el hero, así llega a los bordes del panel en vez de dejar ver su
+  // fondo celeste alrededor (categorías y stats sí mantienen ese padding).
+  heroBleed: { marginHorizontal: -S[10], marginTop: -S[10] },
+
   // Hero — MÁS ALTO para impacto visual
   heroCard: {
     borderRadius: 28,
+    // Las esquinas de arriba ahora tocan directamente las del panel
+    // heroGroup (borderRadius: 32) gracias a heroBleed — deben calzar con
+    // ESE radio, no con el propio, o queda un filo celeste finito en la
+    // esquina por la diferencia de curvatura. Las de abajo se quedan en 28
+    // (transicionan a categorías, no tocan el borde del panel).
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
     overflow: 'hidden',
     shadowColor: C.tealDeep,
     shadowOffset: { width:0, height:10 },
