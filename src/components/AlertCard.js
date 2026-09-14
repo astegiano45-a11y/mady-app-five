@@ -3,7 +3,7 @@
 //  70 % foto · 30 % strip mínimo · sombra suave · bordes 28px
 //  Paleta: teal / coral / verde / rojo — sin violeta ni azul
 // ─────────────────────────────────────────────────────────────────────────────
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
   Animated, Image,
@@ -33,13 +33,35 @@ const CARD_H  = 230;
 const PHOTO_H = Math.round(CARD_H * 0.70);   // 161px
 const STRIP_H = CARD_H - PHOTO_H;             // 69px
 
-export default function AlertCard({ item, onPress, width = CARD_W }) {
+export default function AlertCard({ item, onPress, width = CARD_W, index = 0 }) {
   const scale = useRef(new Animated.Value(1)).current;
   const [liked, setLiked] = useState(false);
   // Antes solo caía al placeholder si photo_url venía null/vacío — un link
   // roto (foto borrada del hosting, etc.) se intentaba cargar igual y
   // quedaba en blanco. onError abajo detecta la falla real de carga.
   const [imgFailed, setImgFailed] = useState(false);
+
+  // Entrada escalonada: fade + slide sutil desde la derecha (natural para
+  // una fila que scrollea horizontal), con delay incremental por índice.
+  // Misma duración/easing que el fade+slide del hero de esta pantalla
+  // (HomeScreen: fade 580ms, slide 500ms, sin easing custom) — es la
+  // única animación de entrada que ya existe acá, para que se sienta
+  // consistente con el resto del Home.
+  const entranceOpacity = useRef(new Animated.Value(0)).current;
+  const entranceX       = useRef(new Animated.Value(24)).current;
+  // "Pop" del corazón al likear — crece y vuelve a su tamaño (bounce),
+  // en vez de cambiar de color/fill sin transición.
+  const heartScale = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    Animated.sequence([
+      Animated.delay(index * 70),
+      Animated.parallel([
+        Animated.timing(entranceOpacity, { toValue: 1, duration: 580, useNativeDriver: true }),
+        Animated.timing(entranceX,       { toValue: 0, duration: 500, useNativeDriver: true }),
+      ]),
+    ]).start();
+  }, []);
 
   const type  = TYPE[item.type] || TYPE.lost;
   const photo = (item.photo && !imgFailed)
@@ -49,9 +71,23 @@ export default function AlertCard({ item, onPress, width = CARD_W }) {
   const pressIn  = () => Animated.spring(scale, { toValue: 0.96, useNativeDriver: true, speed: 60 }).start();
   const pressOut = () => Animated.spring(scale, { toValue: 1,    useNativeDriver: true, speed: 60 }).start();
 
+  const toggleLike = () => {
+    setLiked((v) => !v);
+    Animated.sequence([
+      Animated.spring(heartScale, { toValue: 1.3, useNativeDriver: true, speed: 60 }),
+      Animated.spring(heartScale, { toValue: 1,   useNativeDriver: true, speed: 40 }),
+    ]).start();
+  };
+
   return (
     <TouchableOpacity onPressIn={pressIn} onPressOut={pressOut} onPress={onPress} activeOpacity={1}>
-      <Animated.View style={[s.card, { width, height: CARD_H }, { transform: [{ scale }] }]}>
+      <Animated.View
+        style={[
+          s.card,
+          { width, height: CARD_H },
+          { opacity: entranceOpacity, transform: [{ scale }, { translateX: entranceX }] },
+        ]}
+      >
 
         {/* ── FOTO 70 % ────────────────────────────────────────────────────── */}
         <View style={[s.imgWrap, { height: PHOTO_H }]}>
@@ -77,15 +113,17 @@ export default function AlertCard({ item, onPress, width = CARD_W }) {
           {/* Heart — top right */}
           <TouchableOpacity
             style={s.heartBtn}
-            onPress={() => setLiked(v => !v)}
+            onPress={toggleLike}
             hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
           >
-            <Heart
-              size={14}
-              color={liked ? '#EF4444' : C.white}
-              fill={liked ? '#EF4444' : 'none'}
-              strokeWidth={2}
-            />
+            <Animated.View style={{ transform: [{ scale: heartScale }] }}>
+              <Heart
+                size={14}
+                color={liked ? '#EF4444' : C.white}
+                fill={liked ? '#EF4444' : 'none'}
+                strokeWidth={2}
+              />
+            </Animated.View>
           </TouchableOpacity>
 
           {/* Nombre + zona sobre la foto */}

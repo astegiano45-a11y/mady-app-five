@@ -498,8 +498,8 @@ export default function HomeScreen({ navigation }) {
           // Desktop: grilla que envuelve (wrap) — se ven todas las tarjetas
           // completas, ninguna queda cortada en el borde de la ventana.
           <View style={s.alertsGridDesktop}>
-            {alertas.map((item) => (
-              <AlertCard key={item.id} item={item} onPress={() => navigation.navigate('MascotaDetalle', { id: item.id })} />
+            {alertas.map((item, index) => (
+              <AlertCard key={item.id} item={item} index={index} onPress={() => navigation.navigate('MascotaDetalle', { id: item.id })} />
             ))}
           </View>
         ) : (
@@ -509,8 +509,8 @@ export default function HomeScreen({ navigation }) {
             keyExtractor={(i) => i.id}
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ paddingHorizontal: S[20], paddingBottom: S[4] }}
-            renderItem={({ item }) => (
-              <AlertCard item={item} onPress={() => navigation.navigate('MascotaDetalle', { id: item.id })} />
+            renderItem={({ item, index }) => (
+              <AlertCard item={item} index={index} onPress={() => navigation.navigate('MascotaDetalle', { id: item.id })} />
             )}
             ItemSeparatorComponent={() => <View style={{ width: 12 }} />}
           />
