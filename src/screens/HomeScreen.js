@@ -76,9 +76,26 @@ const ACTIONS = [
 //  Sub-componentes
 // ─────────────────────────────────────────────────────────────────────────────
 
-function QuickAction({ item, onPress, isDesktop }) {
+function QuickAction({ item, onPress, isDesktop, index = 0 }) {
   const scale = useRef(new Animated.Value(1)).current;
+  // Entrada escalonada — mismo criterio que AlertCard en "Cerca de ti":
+  // fade 580ms + slide 500ms con delay incremental de 70ms por índice.
+  // Acá el slide es vertical (translateY, como el hero) en vez de
+  // horizontal porque esto es una grilla fija, no una fila que scrollea.
+  const entranceOpacity = useRef(new Animated.Value(0)).current;
+  const entranceY        = useRef(new Animated.Value(16)).current;
   const { Icon } = item;
+
+  useEffect(() => {
+    Animated.sequence([
+      Animated.delay(index * 70),
+      Animated.parallel([
+        Animated.timing(entranceOpacity, { toValue: 1, duration: 580, useNativeDriver: true }),
+        Animated.timing(entranceY,       { toValue: 0, duration: 500, useNativeDriver: true }),
+      ]),
+    ]).start();
+  }, []);
+
   return (
     <Pressable
       onPressIn={() => Animated.spring(scale, { toValue: 0.92, useNativeDriver: true, speed: 80 }).start()}
@@ -87,7 +104,11 @@ function QuickAction({ item, onPress, isDesktop }) {
       style={{ flex: 1, flexBasis: 0 }}
     >
       <Animated.View
-        style={[qa.card, isDesktop && qa.cardDesktop, { backgroundColor: item.bg, borderColor: item.color + '40', transform: [{ scale }] }]}
+        style={[
+          qa.card, isDesktop && qa.cardDesktop,
+          { backgroundColor: item.bg, borderColor: item.color + '40' },
+          { opacity: entranceOpacity, transform: [{ scale }, { translateY: entranceY }] },
+        ]}
       >
         <View style={[qa.iconWrap, isDesktop && qa.iconWrapDesktop, { backgroundColor: item.color + '20' }]}>
           <Icon size={isDesktop ? 32 : 20} color={item.color} strokeWidth={1.75} />
@@ -97,6 +118,47 @@ function QuickAction({ item, onPress, isDesktop }) {
     </Pressable>
   );
 }
+
+// Count-up de los stats del Home: anima de 0 al valor final una vez que el
+// valor está disponible (dispara de nuevo si `value` cambia — típicamente
+// solo pasa una vez, cuando termina de cargar `mascotas.length` de forma
+// async; no se repite en re-renders con el mismo valor). 900ms ease-out:
+// un poco más largo que el fade+slide del resto del Home (580/500ms)
+// porque un conteo de pocas cifras en <600ms apenas se percibe como conteo.
+//
+// Usa requestAnimationFrame manual en vez de Animated.timing + addListener:
+// en el sandbox de verificación, un Animated.Value "suelto" (leído solo vía
+// addListener, no enchufado al prop de un componente Animated.* renderizado)
+// no tickeaba — aunque no se pudo confirmar si era un límite real de RNW o
+// un artefacto de la pestaña de test (Chrome throttlea rAF en tabs sin foco,
+// y ahí tampoco tickeaba). rAF manual es standard, sin ambigüedad de API, y
+// funciona igual en web y nativo — se mantiene por eso, no por el descarte
+// de Animated en sí.
+function easeOutCubic(t) {
+  return 1 - (1 - t) ** 3;
+}
+
+function StatCounter({ value, style }) {
+  const [display, setDisplay] = useState(0);
+
+  useEffect(() => {
+    let raf;
+    const duration = 900;
+    const startedAt = Date.now();
+
+    const tick = () => {
+      const t = Math.min(1, (Date.now() - startedAt) / duration);
+      setDisplay(Math.round(value * easeOutCubic(t)));
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+
+    return () => cancelAnimationFrame(raf);
+  }, [value]);
+
+  return <Text style={style}>{display}</Text>;
+}
+
 const qa = StyleSheet.create({
   // Compactas a propósito (ver imagen de referencia): círculo de ícono chico,
   // padding mínimo, sin aire de sobra arriba/abajo del ícono + texto.
@@ -424,8 +486,8 @@ export default function HomeScreen({ navigation }) {
       {/* ───────────────────────────────────────────── ACCIONES ── */}
       <Animated.View style={[s.groupRow, isDesktop && s.groupRowDesktop, { opacity: fade }]}>
         <View style={[s.actionsGrid, isDesktop && s.actionsGridDesktop]}>
-          {ACTIONS.map((item) => (
-            <QuickAction key={item.key} item={item} onPress={nav(item.screen)} isDesktop={isDesktop} />
+          {ACTIONS.map((item, index) => (
+            <QuickAction key={item.key} item={item} index={index} onPress={nav(item.screen)} isDesktop={isDesktop} />
           ))}
         </View>
       </Animated.View>
@@ -435,7 +497,7 @@ export default function HomeScreen({ navigation }) {
       <Animated.View style={[{ opacity: fade }, s.statsRow, isDesktop && s.statsRowDesktop]}>
         {STATS.map((st) => (
           <View key={st.lbl} style={[s.statCard, isDesktop && s.statCardDesktop, { borderColor: st.color }]}>
-            <Text style={[s.statVal, isDesktop && s.statValDesktop, { color: st.color }]}>{st.val}</Text>
+            <StatCounter value={Number(st.val)} style={[s.statVal, isDesktop && s.statValDesktop, { color: st.color }]} />
             <Text style={[s.statLbl, isDesktop && s.statLblDesktop]}>{st.lbl}</Text>
           </View>
         ))}
