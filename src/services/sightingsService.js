@@ -1,7 +1,7 @@
 // sightingsService — Guardar avistamientos de mascotas perdidas
 import { supabase } from '../lib/supabase';
 
-export async function createSighting(alertaId, lat, lng, description = '') {
+export async function createSighting(alertaId, lat, lng, description = null) {
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('No user logged in');

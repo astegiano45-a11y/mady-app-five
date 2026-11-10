@@ -14,6 +14,7 @@ import { getCurrentLocation, reverseGeocode } from '../services/LocationService'
 import { COLORS, FONTS, RADIUS, SHADOW, SPACING } from '../theme';
 import { createSighting, getSightingsForAlerta } from '../services/sightingsService';
 import { alertCoords } from '../services/proximityService';
+import { timeAgo, sightingPlaceLabel, sightingNote } from '../utils/sightings';
 
 const FALLBACK_PINS = [
   { id:'f1', type:'lost',     name:'Mady',   emoji:'🐕', lat:-53.7873, lng:-67.7100, zone:'Barrio Centro', time:'2 h'    },
@@ -27,19 +28,13 @@ const TYPE_INFO = {
   adoption: { label: 'Adopción',   color: '#9333EA', bg: '#FAF5FF' },
 };
 
-// Tiempo relativo tipo "hace 5 min" / "hace 2 h" / "hace 3 días"
-function timeAgo(iso) {
-  const diff = Math.floor((Date.now() - new Date(iso)) / 60000);
-  if (diff < 1) return 'recién';
-  if (diff < 60) return `hace ${diff} min`;
-  if (diff < 1440) return `hace ${Math.floor(diff / 60)} h`;
-  return `hace ${Math.floor(diff / 1440)} días`;
-}
-
 // ── Card de detalle slide-up ──────────────────────────────────────────────────
 function PinCard({ pin, onClose, onContact, onLoVi, reportingSighting, sightings = [], loadingSightings }) {
   if (!pin) return null;
   const t = TYPE_INFO[pin.type] || TYPE_INFO.lost;
+  // Punto donde se perdió: solo si la alerta tiene coordenadas reales. Si cae
+  // al centro aproximado de la zona (con jitter), la distancia sería inventada.
+  const lostPoint = pin.exactLocation ? { lat: pin.lat, lng: pin.lng } : null;
   return (
     <View style={card.wrap}>
       <View style={card.header}>
@@ -104,15 +99,19 @@ function PinCard({ pin, onClose, onContact, onLoVi, reportingSighting, sightings
             <Text style={card.sightingsEmpty}>Todavía nadie reportó haberlo visto.</Text>
           ) : (
             <ScrollView style={card.sightingsList} nestedScrollEnabled showsVerticalScrollIndicator={false}>
-              {sightings.map((s) => (
-                <View key={s.id} style={card.sightingRow}>
-                  <View style={card.sightingDot} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={card.sightingText}>{s.description || 'Avistamiento reportado'}</Text>
-                    <Text style={card.sightingTime}>{timeAgo(s.created_at)}</Text>
+              {sightings.map((s) => {
+                const note = sightingNote(s);
+                return (
+                  <View key={s.id} style={card.sightingRow}>
+                    <View style={card.sightingDot} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={card.sightingText}>{sightingPlaceLabel(s, lostPoint)}</Text>
+                      {!!note && <Text style={card.sightingNote}>“{note}”</Text>}
+                      <Text style={card.sightingTime}>{timeAgo(s.created_at)}</Text>
+                    </View>
                   </View>
-                </View>
-              ))}
+                );
+              })}
             </ScrollView>
           )}
         </View>
@@ -149,6 +148,7 @@ const card = StyleSheet.create({
   sightingRow:    { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingVertical: 6 },
   sightingDot:    { width: 6, height: 6, borderRadius: 3, backgroundColor: '#10B981', marginTop: 6 },
   sightingText:   { fontSize: FONTS.xs, color: '#374151', fontWeight: '500' },
+  sightingNote:   { fontSize: FONTS.xs, color: '#6B7280', fontStyle: 'italic', marginTop: 1 },
   sightingTime:   { fontSize: 10, color: '#9CA3AF', marginTop: 1 },
 });
 
@@ -305,7 +305,10 @@ export default function MapScreen({ navigation }) {
         setReportingSighting(false);
         return;
       }
-      await createSighting(pin.id, myLoc.lat, myLoc.lng, `Visto cerca de ${pin.zone}`);
+      // Sin description automática: el lugar se calcula al mostrarlo, a partir
+      // del lat/lng real (sightingPlaceLabel). description queda para una nota
+      // escrita por quien la vio (etapa 2).
+      await createSighting(pin.id, myLoc.lat, myLoc.lng);
       setSightingSuccess(true);
       setTimeout(() => setSightingSuccess(false), 3000);
       await loadSightings(pin.id); // refresca la lista — el nuevo avistamiento aparece al toque
