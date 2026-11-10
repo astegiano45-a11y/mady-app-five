@@ -16,31 +16,13 @@ function installTrackScript() {
   document.head.appendChild(style);
 }
 
-const LEAFLET_CSS = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css';
-const LEAFLET_JS  = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js';
+import { LEAFLET_CSS, LEAFLET_JS, loadScript, loadStyle } from './leafletLoader.web';
 
 const TYPE_CFG = {
   lost:     { color: '#DC2626', label: 'PERDIDO',    btn: 'Lo vi' },
   found:    { color: '#16A34A', label: 'ENCONTRADO', btn: 'Es mío' },
   adoption: { color: '#9333EA', label: 'ADOPCIÓN',   btn: 'Adoptar' },
 };
-
-function loadScript(src) {
-  return new Promise((resolve, reject) => {
-    if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
-    const s = document.createElement('script');
-    s.src = src; s.async = false;
-    s.onload = resolve; s.onerror = reject;
-    document.head.appendChild(s);
-  });
-}
-
-function loadStyle(href) {
-  if (document.querySelector(`link[href="${href}"]`)) return;
-  const l = document.createElement('link');
-  l.rel = 'stylesheet'; l.href = href;
-  document.head.appendChild(l);
-}
 
 export default function LeafletMap({
   pins = [],
