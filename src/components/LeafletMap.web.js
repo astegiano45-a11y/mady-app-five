@@ -85,6 +85,7 @@ export default function LeafletMap({
   onPinContact,
   track = null,          // recorrido de avistamientos (buildTrack) — etapa 3
   trackPadding = null,   // [arriba, derecha, abajo, izquierda] px libres de la tarjeta
+  dark = false,          // modo rastreo: mapa oscuro
   style,
 }) {
   const mapDivRef  = useRef(null);
@@ -104,7 +105,9 @@ export default function LeafletMap({
       try {
         const L = await loadLeaflet();
         if (!alive || !mapDivRef.current || !L) return;
-        const map = L.map(mapDivRef.current, { zoomControl: true, attributionControl: false })
+        // zoomSnap .25: el encuadre del recorrido aprovecha el espacio en vez de
+        // saltar al nivel de zoom entero de abajo (los botones +/- siguen de a 1).
+        const map = L.map(mapDivRef.current, { zoomControl: true, attributionControl: false, zoomSnap: 0.25, zoomDelta: 1 })
           .setView([centerLat, centerLng], zoom);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
         pinsLayer.current = L.layerGroup().addTo(map);
@@ -169,14 +172,45 @@ export default function LeafletMap({
     }).bindPopup('<b>📱 Tú estás aquí</b>').addTo(userLayer.current);
   }, [ready, userLocation]);
 
-  // 5) Recorrido de avistamientos (etapa 3)
+  // Modo rastreo: mapa oscuro (CSS .mady-dark en mapTrackScript)
   useEffect(() => {
+    mapDivRef.current?.classList.toggle('mady-dark', !!dark);
+  }, [dark, ready]);
+
+  // 5) Recorrido de avistamientos (etapa 3)
+  const lastTrackArgs = useRef(null);
+  const drawTrack = () => {
     const L = window.L;
     const map = mapRef.current;
-    if (!ready || !L || !map || !window.__madyTrack) return;
+    if (!L || !map || !window.__madyTrack) return;
     if (trackLayer.current) { trackLayer.current.remove(); trackLayer.current = null; }
-    if (track) trackLayer.current = window.__madyTrack.draw(L, map, track, { padding: trackPadding });
-  }, [ready, track, trackPadding]);
+    const args = lastTrackArgs.current;
+    if (args?.track) trackLayer.current = window.__madyTrack.draw(L, map, args.track, { padding: args.padding });
+  };
+  useEffect(() => {
+    if (!ready) return;
+    lastTrackArgs.current = { track, padding: trackPadding };
+    mapRef.current?.invalidateSize({ pan: false });
+    drawTrack();
+  }, [ready, track, trackPadding]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Si el contenedor cambia de tamaño (ej. al entrar en modo rastreo se ocultan
+  // filtros y leyenda y el mapa crece), Leaflet tiene que recalcular su tamaño;
+  // si no, el encuadre del recorrido y el círculo quedan corridos.
+  useEffect(() => {
+    if (!ready || typeof ResizeObserver === 'undefined' || !mapDivRef.current) return undefined;
+    let raf = null;
+    const ro = new ResizeObserver(() => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        if (!mapRef.current) return;
+        mapRef.current.invalidateSize({ pan: false });
+        if (lastTrackArgs.current?.track) drawTrack(); // re-encuadrar con el tamaño nuevo
+      });
+    });
+    ro.observe(mapDivRef.current);
+    return () => { cancelAnimationFrame(raf); ro.disconnect(); };
+  }, [ready]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <View style={[s.container, style]}>

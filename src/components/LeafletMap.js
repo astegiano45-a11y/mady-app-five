@@ -180,11 +180,20 @@ function buildLeafletHTML({ pins, userLat, userLng, centerLat, centerLng, zoom }
     st.textContent = window.__madyTrack.css;
     document.head.appendChild(st);
   })();
-  var trackLayer = null;
+  var trackLayer = null, lastTrack = null, lastPadding = null, resizeTimer = null;
   window.__setTrack = function(track, padding) {
+    lastTrack = track; lastPadding = padding;
     if (trackLayer) { trackLayer.remove(); trackLayer = null; }
     if (track) trackLayer = window.__madyTrack.draw(L, map, track, { padding: padding });
   };
+  // Al entrar en modo rastreo el WebView crece: re-encuadrar el recorrido
+  window.addEventListener('resize', function(){
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(function(){
+      map.invalidateSize({ pan: false });
+      if (lastTrack) window.__setTrack(lastTrack, lastPadding);
+    }, 120);
+  });
 
   // Notificar listo
   if (window.ReactNativeWebView) {
@@ -227,6 +236,7 @@ export default function LeafletMap({
   onPinContact,
   track = null,          // recorrido de avistamientos (buildTrack) — etapa 3
   trackPadding = null,   // [arriba, derecha, abajo, izquierda] px libres de la tarjeta
+  dark = false,          // modo rastreo: mapa oscuro
   style,
 }) {
   // En web, usar iframe directamente
@@ -251,15 +261,16 @@ export default function LeafletMap({
 
   // El recorrido se inyecta sin recargar el WebView. Si el WebView se recarga
   // (cambian los pines), al avisar 'ready' se vuelve a mandar el actual.
-  const trackRef = useRef({ track, trackPadding });
-  trackRef.current = { track, trackPadding };
+  const trackRef = useRef({ track, trackPadding, dark });
+  trackRef.current = { track, trackPadding, dark };
   const sendTrack = useCallback(() => {
-    const { track: t, trackPadding: p } = trackRef.current;
+    const { track: t, trackPadding: p, dark: d } = trackRef.current;
     webviewRef.current?.injectJavaScript(
+      `document.getElementById('map').classList.toggle('mady-dark', ${d ? 'true' : 'false'});` +
       `window.__setTrack && window.__setTrack(${JSON.stringify(t)}, ${JSON.stringify(p)}); true;`
     );
   }, []);
-  useEffect(() => { sendTrack(); }, [track, trackPadding, sendTrack]);
+  useEffect(() => { sendTrack(); }, [track, trackPadding, dark, sendTrack]);
 
   const handleMessage = useCallback((e) => {
     try {

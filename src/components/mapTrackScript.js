@@ -39,6 +39,20 @@ const CSS = `
 .mady-trk-pop b{display:block;font-size:13px;color:#111827;margin-bottom:2px}
 .mady-trk-pop .t{font-size:12px;color:#6B7280}
 .mady-trk-pop .n{font-size:12px;color:#374151;font-style:italic;margin-top:4px}
+
+/* ── Modo rastreo ── */
+/* Mapa oscuro: se oscurecen los mismos tiles de OpenStreetMap con un filtro,
+   sin sumar otro proveedor de mapas. La clase la pone LeafletMap (prop dark). */
+.mady-dark{background:#0B1220}
+.mady-dark .leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.95) contrast(.88) saturate(.45)}
+.mady-glow{filter:drop-shadow(0 0 5px #22D3EE) drop-shadow(0 0 10px rgba(34,211,238,.6))}
+.mady-trk-dot.dk{background:#0B1220;border-color:#22D3EE;color:#A5F3FC;box-shadow:0 0 10px rgba(34,211,238,.7)}
+.mady-trk-lost.dk{background:#0B1220;border-color:#E5E7EB}
+.mady-trk-last.dk .ring{border-color:#F43F5E}
+.mady-trk-last.dk .face{background:#F43F5E;box-shadow:0 0 18px rgba(244,63,94,.85)}
+.mady-trk-zone{display:inline-block;white-space:nowrap;transform:translate(-50%,-50%);
+  background:rgba(245,158,11,.95);color:#111827;border-radius:999px;padding:3px 10px;
+  font:800 11px -apple-system,BlinkMacSystemFont,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.4)}
 `;
 
 export const TRACK_SCRIPT = `
@@ -66,17 +80,42 @@ export const TRACK_SCRIPT = `
     if (!track || !track.points || !track.points.length) return group;
     var pts = track.points;
     var latlngs = pts.map(function(p){ return [p.lat, p.lng]; });
+    var dark = track.mode === 'tracking';
+    var dk = dark ? ' dk' : '';
+    var boundsLayers = [];
+
+    // Zona de búsqueda (modo rastreo): círculo alrededor del último avistamiento
+    // que crece con el tiempo. Va primero para quedar debajo de la línea.
+    var sa = track.searchArea;
+    if (sa) {
+      var circle = L.circle([sa.lat, sa.lng], { radius: sa.radiusM, color:'#F59E0B', weight:2,
+        opacity:.9, dashArray:'6 6', fillColor:'#F59E0B', fillOpacity:.10, interactive:false }).addTo(group);
+      boundsLayers.push(circle);
+      // Etiqueta en el borde sur del círculo (arriba va la del último
+      // avistamiento). 1° de latitud ≈ 111.320 m.
+      var south = [sa.lat - sa.radiusM / 111320, sa.lng];
+      L.marker(south, { interactive:false, keyboard:false, zIndexOffset:400,
+        icon: L.divIcon({ className:'', iconSize:[0,0], iconAnchor:[0,0],
+          html:'<span class="mady-trk-zone">Zona de búsqueda · ' + esc(sa.radiusLabel) + '</span>' }) })
+        .addTo(group);
+    }
 
     if (latlngs.length > 1) {
-      // Halo blanco debajo para que la línea se lea sobre cualquier fondo
-      L.polyline(latlngs, { color:'#fff', weight:8, opacity:.9, interactive:false }).addTo(group);
-      L.polyline(latlngs, { color:'#DC2626', weight:4, opacity:.9, dashArray: null, interactive:false }).addTo(group);
+      if (dark) {
+        // Línea brillante: halo ancho translúcido + trazo cian con resplandor
+        L.polyline(latlngs, { color:'#22D3EE', weight:14, opacity:.18, interactive:false }).addTo(group);
+        L.polyline(latlngs, { color:'#67E8F9', weight:4, opacity:1, interactive:false, className:'mady-glow' }).addTo(group);
+      } else {
+        // Halo blanco debajo para que la línea se lea sobre cualquier fondo
+        L.polyline(latlngs, { color:'#fff', weight:8, opacity:.9, interactive:false }).addTo(group);
+        L.polyline(latlngs, { color:'#DC2626', weight:4, opacity:.9, interactive:false }).addTo(group);
+      }
     }
 
     pts.forEach(function(p){
       var icon, z = 500;
       if (p.kind === 'lost') {
-        icon = L.divIcon({ className:'', html:'<div class="mady-trk-lost" title="Dónde se perdió">⚑</div>',
+        icon = L.divIcon({ className:'', html:'<div class="mady-trk-lost' + dk + '" title="Dónde se perdió">⚑</div>',
           iconSize:[26,26], iconAnchor:[13,13] });
         L.marker([p.lat,p.lng], { icon:icon, zIndexOffset:z, keyboard:false })
           .bindTooltip(esc(p.label), { direction:'top', offset:[0,-12] })
@@ -86,12 +125,12 @@ export const TRACK_SCRIPT = `
       if (p.isLast) {
         var img = safeUrl(p.photo);
         icon = L.divIcon({ className:'',
-          html:'<div class="mady-trk-last"><div class="ring"></div><div class="face">' +
+          html:'<div class="mady-trk-last' + dk + '"><div class="ring"></div><div class="face">' +
                (img ? '<img src="' + img + '" alt="">' : '👀') + '</div></div>',
           iconSize:[60,60], iconAnchor:[30,30] });
         z = 2000;
       } else {
-        icon = L.divIcon({ className:'', html:'<div class="mady-trk-dot">' + esc(p.n) + '</div>',
+        icon = L.divIcon({ className:'', html:'<div class="mady-trk-dot' + dk + '">' + esc(p.n) + '</div>',
           iconSize:[24,24], iconAnchor:[12,12] });
         z = 1000 + p.n;
       }
@@ -107,11 +146,14 @@ export const TRACK_SCRIPT = `
 
     // Mostrar todo el recorrido. opts.padding: [arriba, derecha, abajo, izquierda]
     // en px, para que no quede tapado por la tarjeta de la mascota.
+    // En modo rastreo también entra el círculo de búsqueda completo.
     var pad = opts.padding || [40,40,40,40];
-    if (latlngs.length === 1) {
+    var bounds = L.latLngBounds(latlngs);
+    boundsLayers.forEach(function(l){ bounds.extend(l.getBounds()); });
+    if (latlngs.length === 1 && !boundsLayers.length) {
       map.setView(latlngs[0], Math.max(map.getZoom(), 15));
     } else {
-      map.fitBounds(L.latLngBounds(latlngs), {
+      map.fitBounds(bounds, {
         paddingTopLeft: [pad[3], pad[0]], paddingBottomRight: [pad[1], pad[2]], maxZoom: 17,
       });
     }
