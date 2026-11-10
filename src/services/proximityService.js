@@ -5,22 +5,14 @@
 
 import { Platform } from 'react-native';
 import { supabase } from '../lib/supabase';
-import { distanceKm } from './LocationService';
+import { distanceKm, ZONE_COORDS } from '../utils/geo';
+
+// Las coordenadas por zona y formatDistance viven en utils/geo (puro);
+// se re-exportan acá para no romper los imports existentes.
+export { ZONE_COORDS, formatDistance } from '../utils/geo';
 
 // Radio (km) dentro del cual se notifica a un usuario sobre una alerta nueva
 export const ALERT_RADIUS_KM = 3;
-
-// Coordenadas por zona de Río Grande (mismo set que MapScreen)
-export const ZONE_COORDS = {
-  'Barrio Centro':  { lat: -53.7873, lng: -67.7100 },
-  'Margen Sur':     { lat: -53.8050, lng: -67.6950 },
-  'Chacra XI':      { lat: -53.7750, lng: -67.7300 },
-  'Villa del Mar':  { lat: -53.7650, lng: -67.6800 },
-  'Chacra II':      { lat: -53.7920, lng: -67.7250 },
-  'Chacra III':     { lat: -53.7830, lng: -67.7400 },
-  'Barrio IPVU':    { lat: -53.7700, lng: -67.7150 },
-  'Zona Norte':     { lat: -53.7600, lng: -67.7050 },
-};
 
 // Resuelve lat/lng de una alerta: usa las propias si existen, si no la zona
 export function alertCoords(alerta) {
@@ -109,11 +101,4 @@ export function evaluateProximity(alerta, myLat, myLng) {
   const { lat, lng } = alertCoords(alerta);
   const d = distanceKm(myLat, myLng, lat, lng);
   return { relevant: d <= ALERT_RADIUS_KM, distanceKm: d };
-}
-
-// Formatea distancia para mostrar
-export function formatDistance(km) {
-  if (km == null) return 'cerca tuyo';
-  if (km < 1) return `a ${Math.round(km * 1000)} m`;
-  return `a ${km.toFixed(1)} km`;
 }
