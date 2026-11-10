@@ -21,7 +21,7 @@ const { parseDbDate, timeAgo, sightingPlaceLabel, sightingNote } =
   await import(pathToFileURL(join(tmp, 'sightings.js')).href);
 const { nearestZone, formatDistance, distanceKm } =
   await import(pathToFileURL(join(tmp, 'geo.js')).href);
-const { buildTrack } = await import(pathToFileURL(join(tmp, 'track.js')).href);
+const { buildTrack, searchRadiusMeters } = await import(pathToFileURL(join(tmp, 'track.js')).href);
 
 let n = 0;
 const ok = (name, fn) => { fn(); n++; console.log('✓', name); };
@@ -122,6 +122,44 @@ ok('recorrido: sin avistamientos no dibuja nada', () => {
   assert.equal(buildTrack(pinExacto, [], NOW), null);
   assert.equal(buildTrack(null, avist, NOW), null);
   assert.equal(buildTrack(pinExacto, [{ id: 'x', lat: null, lng: 1 }], NOW), null);
+});
+
+// ── Modo rastreo: zona de búsqueda ──────────────────────────────────────────
+ok('zona de búsqueda: 300 m al inicio, +300 m por hora, tope 3 km', () => {
+  const t0 = Date.parse('2026-11-10T00:00:00Z');
+  assert.equal(searchRadiusMeters(t0, t0), 300);
+  assert.equal(searchRadiusMeters(t0, t0 + 30 * 60000), 450);
+  assert.equal(searchRadiusMeters(t0, t0 + 3 * 3600000), 1200);
+  assert.equal(searchRadiusMeters(t0, t0 + 9 * 3600000), 3000);
+  assert.equal(searchRadiusMeters(t0, t0 + 72 * 3600000), 3000);
+  assert.equal(searchRadiusMeters(undefined, t0), 300);
+  assert.equal(searchRadiusMeters(t0 + 60000, t0), 300); // fecha futura (reloj corrido) no achica
+});
+ok('rastreo: la zona se centra en el último avistamiento', () => {
+  const t = buildTrack(pinExacto, avist, NOW, { search: true });
+  assert.equal(t.mode, 'tracking');
+  assert.equal(t.searchArea.lat, -53.7925);
+  assert.equal(t.searchArea.radiusM, 450);          // último avistamiento hace 30 min
+  assert.equal(t.searchArea.radiusLabel, '450 m');
+  assert.equal(t.searchArea.fromSighting, true);
+});
+ok('rastreo sin avistamientos: zona desde donde se perdió, por la hora del reporte', () => {
+  const pin = { ...pinExacto, createdAt: '2026-11-10T01:30:00+00:00' };
+  const t = buildTrack(pin, [], NOW, { search: true });
+  assert.equal(t.points.length, 1);
+  assert.equal(t.points[0].kind, 'lost');
+  assert.equal(t.searchArea.lat, pinExacto.lat);
+  assert.equal(t.searchArea.radiusM, 900);           // 2 h → 300 + 600
+  assert.equal(t.searchArea.radiusLabel, '900 m');
+  assert.equal(buildTrack(pin, [], Date.parse('2026-11-12T00:00:00Z'), { search: true }).searchArea.radiusLabel, '3 km');
+  assert.equal(t.searchArea.fromSighting, false);
+});
+ok('rastreo sin avistamientos ni punto exacto: no hay nada que dibujar', () => {
+  assert.equal(buildTrack({ ...pinExacto, exactLocation: false }, [], NOW, { search: true }), null);
+});
+ok('modo normal no agrega zona de búsqueda', () => {
+  assert.equal(buildTrack(pinExacto, avist, NOW).searchArea, undefined);
+  assert.equal(buildTrack(pinExacto, [], NOW), null);
 });
 
 console.log(`\n${n} casos OK`);

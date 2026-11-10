@@ -20,7 +20,8 @@ import { buildTrack } from '../utils/track';
 import { useIsDesktop } from '../hooks/useIsDesktop';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
-import { suscribirAlertas } from '../services/alertasService';
+import { suscribirAlertas, resolverAlerta } from '../services/alertasService';
+import { useAuth } from '../context/AuthContext';
 
 // Ancho de la tarjeta de la mascota en pantallas anchas
 const CARD_WIDE_WIDTH = 400;
@@ -54,7 +55,8 @@ function alertToPin(a) {
     lng: base.lng + j.dLng,
     exactLocation: hasRealCoords,
     zone: a.zone, time, photo: a.photo_url,
-    user_id: a.user_id, // quién reportó — necesario para "Lo vi — Contactar"
+    user_id: a.user_id, // quién reportó — "Lo vi — Contactar" y botón del dueño
+    createdAt: a.created_at, // zona de búsqueda cuando todavía no hay avistamientos
   };
 }
 
@@ -70,9 +72,71 @@ const TYPE_INFO = {
   adoption: { label: 'Adopción',   color: '#9333EA', bg: '#FAF5FF' },
 };
 
+// ── Modo rastreo: tarjeta chica abajo ─────────────────────────────────────────
+// En el celular la tarjeta completa tapaba casi todo el mapa. En rastreo queda
+// una barra compacta con lo esencial y el mapa (oscuro) ocupa el resto.
+function TrackingBar({ pin, track, sightings, onExit, onLoVi }) {
+  const last = track?.points?.filter((p) => p.kind === 'sighting').pop() || null;
+  const sa = track?.searchArea;
+  const photo = last?.photo || pin.photo;
+  return (
+    <View style={trk.wrap} accessibilityLabel={`Rastreando a ${pin.name}`}>
+      <View style={trk.row}>
+        {photo
+          ? <Image source={{ uri: photo }} style={trk.thumb} resizeMode="cover" accessibilityLabel={`Foto de ${pin.name}`} />
+          : <View style={[trk.thumb, trk.thumbEmpty]}><Text style={{ fontSize: 22 }}>{pin.emoji}</Text></View>}
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <View style={trk.titleRow}>
+            <View style={trk.liveDot} />
+            <Text style={trk.kicker}>RASTREANDO</Text>
+          </View>
+          <Text style={trk.name} numberOfLines={1}>{pin.name}</Text>
+          <Text style={trk.meta} numberOfLines={2}>
+            {last
+              ? `Visto ${last.timeLabel} · ${last.placeLabel.split(' · ')[0]}`
+              : sightings.length === 0 ? 'Sin avistamientos todavía' : ''}
+          </Text>
+          {sa && (
+            <Text style={trk.zone} numberOfLines={1}>
+              Zona de búsqueda: {sa.radiusLabel}{sa.maxed ? ' (máximo)' : ''}
+            </Text>
+          )}
+        </View>
+        <Pressable onPress={onExit} style={trk.close} accessibilityRole="button" accessibilityLabel="Salir del modo rastreo">
+          <Text style={trk.closeX}>✕</Text>
+        </Pressable>
+      </View>
+      <Pressable style={trk.btn} onPress={() => onLoVi(pin)} accessibilityRole="button"
+        accessibilityLabel={`Reportar avistamiento de ${pin.name} con una foto`}>
+        <Text style={trk.btnText}>📷 Lo vi aquí</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+const trk = StyleSheet.create({
+  wrap:       { backgroundColor: 'rgba(11,18,32,0.96)', borderRadius: RADIUS.xl, padding: SPACING.md,
+                gap: SPACING.sm, borderWidth: 1, borderColor: 'rgba(34,211,238,0.35)', ...SHADOW.lg },
+  row:        { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
+  thumb:      { width: 52, height: 52, borderRadius: 26, borderWidth: 2, borderColor: '#F43F5E' },
+  thumbEmpty: { backgroundColor: '#1F2937', alignItems: 'center', justifyContent: 'center' },
+  titleRow:   { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  liveDot:    { width: 7, height: 7, borderRadius: 4, backgroundColor: '#22D3EE' },
+  kicker:     { fontSize: 10, fontWeight: '800', letterSpacing: 1, color: '#67E8F9' },
+  name:       { fontSize: FONTS.lg, fontWeight: '800', color: '#F9FAFB' },
+  meta:       { fontSize: FONTS.xs, color: '#D1D5DB', marginTop: 1 },
+  zone:       { fontSize: FONTS.xs, color: '#FCD34D', marginTop: 1, fontWeight: '600' },
+  close:      { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.1)',
+                alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-start' },
+  closeX:     { fontSize: 14, color: '#E5E7EB' },
+  btn:        { backgroundColor: '#10B981', borderRadius: RADIUS.md, paddingVertical: SPACING.sm + 4, alignItems: 'center' },
+  btnText:    { fontSize: FONTS.base, fontWeight: '700', color: '#FFF' },
+});
+
 // ── Card de detalle slide-up ──────────────────────────────────────────────────
-function PinCard({ pin, onClose, onContact, onLoVi, sightings = [], loadingSightings }) {
+function PinCard({ pin, onClose, onContact, onLoVi, onTrack, onFound, isOwner, sightings = [], loadingSightings }) {
   if (!pin) return null;
+  const isLost = pin.type === 'lost';
   const t = TYPE_INFO[pin.type] || TYPE_INFO.lost;
   // Punto donde se perdió: solo si la alerta tiene coordenadas reales. Si cae
   // al centro aproximado de la zona (con jitter), la distancia sería inventada.
@@ -102,27 +166,51 @@ function PinCard({ pin, onClose, onContact, onLoVi, sightings = [], loadingSight
         </View>
       </View>
       <View style={{ gap: SPACING.sm }}>
-        <Pressable
-          style={[card.btn, { backgroundColor: t.color }]}
-          onPress={() => onContact(pin)}
-          accessibilityRole="button"
-          accessibilityLabel={`Contactar sobre ${pin.name}`}
-        >
-          <Text style={card.btnText}>
-            {pin.type === 'lost' ? '📞 Lo vi — Contactar'
-              : pin.type === 'found' ? '📞 Es mío — Contactar'
-              : '❤️ Me interesa adoptar'}
-          </Text>
-        </Pressable>
-        {pin.type === 'lost' && (
+        {/* Solo el dueño, solo si está perdida: marcarla como encontrada */}
+        {isOwner && isLost && (
           <Pressable
-            style={[card.btn, { backgroundColor: '#10B981' }]}
-            onPress={() => onLoVi(pin)}
+            style={[card.btn, card.btnFound]}
+            onPress={() => onFound(pin)}
             accessibilityRole="button"
-            accessibilityLabel={`Reportar avistamiento de ${pin.name} con una foto`}
+            accessibilityLabel={`Ya encontré a ${pin.name}: marcar como resuelta`}
           >
-            <Text style={card.btnText}>📷 Lo vi aquí</Text>
+            <Text style={card.btnFoundText}>🎉 ¡Ya lo encontré!</Text>
           </Pressable>
+        )}
+        {/* Contactar al dueño: no tiene sentido mostrárselo al propio dueño */}
+        {!isOwner && (
+          <Pressable
+            style={[card.btn, { backgroundColor: t.color }]}
+            onPress={() => onContact(pin)}
+            accessibilityRole="button"
+            accessibilityLabel={`Contactar sobre ${pin.name}`}
+          >
+            <Text style={card.btnText}>
+              {pin.type === 'lost' ? '📞 Lo vi — Contactar'
+                : pin.type === 'found' ? '📞 Es mío — Contactar'
+                : '❤️ Me interesa adoptar'}
+            </Text>
+          </Pressable>
+        )}
+        {isLost && (
+          <View style={card.btnRow}>
+            <Pressable
+              style={[card.btn, card.btnHalf, { backgroundColor: '#10B981' }]}
+              onPress={() => onLoVi(pin)}
+              accessibilityRole="button"
+              accessibilityLabel={`Reportar avistamiento de ${pin.name} con una foto`}
+            >
+              <Text style={card.btnText}>📷 Lo vi aquí</Text>
+            </Pressable>
+            <Pressable
+              style={[card.btn, card.btnHalf, card.btnTrack]}
+              onPress={() => onTrack(pin)}
+              accessibilityRole="button"
+              accessibilityLabel={`Rastrear a ${pin.name}: ver el recorrido y la zona de búsqueda en el mapa`}
+            >
+              <Text style={card.btnTrackText}>🛰️ Rastrear</Text>
+            </Pressable>
+          </View>
         )}
       </View>
 
@@ -181,6 +269,12 @@ const card = StyleSheet.create({
   time:      { fontSize: FONTS.xs, color: '#9CA3AF', marginTop: 4 },
   btn:       { borderRadius: RADIUS.md, paddingVertical: SPACING.md, alignItems: 'center', ...SHADOW.sm },
   btnText:   { fontSize: FONTS.base, fontWeight: '700', color: '#FFF' },
+  btnRow:    { flexDirection: 'row', gap: SPACING.sm },
+  btnHalf:   { flex: 1 },
+  btnTrack:  { backgroundColor: '#0B1220', borderWidth: 1.5, borderColor: '#22D3EE' },
+  btnTrackText: { fontSize: FONTS.base, fontWeight: '800', color: '#67E8F9' },
+  btnFound:  { backgroundColor: '#15803D', paddingVertical: SPACING.md + 6 },
+  btnFoundText: { fontSize: FONTS.lg, fontWeight: '800', color: '#FFF' },
 
   // Avistamientos
   sightingsWrap:  { marginTop: SPACING.md, paddingTop: SPACING.md, borderTopWidth: 1, borderTopColor: '#F3F4F6' },
@@ -207,6 +301,11 @@ export default function MapScreen({ navigation }) {
   const [capturePin, setCapturePin] = useState(null); // mascota para la que se está cargando un avistamiento
   const [cardHeight, setCardHeight] = useState(0);
   const isDesktop = useIsDesktop();
+  const { currentUser } = useAuth();
+  const [tracking, setTracking] = useState(false);          // modo rastreo
+  const [now, setNow] = useState(() => Date.now());          // reloj de la zona de búsqueda
+  const [confirmFound, setConfirmFound] = useState(null);    // pin a marcar como encontrado
+  const [resolving, setResolving] = useState(false);
   const [sightings, setSightings] = useState([]);
   const [loadingSightings, setLoadingSightings] = useState(false);
   // Reemplazan Alert.alert en todo este screen: react-native-web (lo que
@@ -284,18 +383,35 @@ export default function MapScreen({ navigation }) {
 
   // Recorrido de la mascota seleccionada: dónde se perdió → avistamientos en
   // orden de hora, con el último destacado (etapa 3). Se limpia al cerrar.
+  // En modo rastreo la zona de búsqueda crece con el tiempo: se recalcula
+  // cada minuto mientras está abierto.
+  useEffect(() => {
+    if (!tracking) return undefined;
+    setNow(Date.now());
+    const t = setInterval(() => setNow(Date.now()), 60000);
+    return () => clearInterval(t);
+  }, [tracking]);
+
   const track = useMemo(
-    () => (selectedPin?.type === 'lost' ? buildTrack(selectedPin, sightings) : null),
-    [selectedPin, sightings],
+    () => (selectedPin?.type === 'lost'
+      ? buildTrack(selectedPin, sightings, now, { search: tracking })
+      : null),
+    [selectedPin, sightings, now, tracking],
   );
   // Margen para que el recorrido no quede debajo de la tarjeta:
-  // en ancho, la tarjeta ocupa la izquierda; en celular, la parte de abajo.
+  // en ancho, la tarjeta ocupa la izquierda; en celular (y en rastreo), abajo.
   // Arriba 80 px: lugar para la etiqueta "Último avistamiento", que va sobre el marcador.
   const trackPadding = useMemo(() => (
-    isDesktop
+    isDesktop && !tracking
       ? [80, 40, 40, CARD_WIDE_WIDTH + SPACING.lg * 2 + 24]
       : [80, 40, Math.max(40, cardHeight - 24), 40]
-  ), [isDesktop, cardHeight]);
+  ), [isDesktop, cardHeight, tracking]);
+
+  // En rastreo solo se muestra la mascota rastreada (sin el resto de los pines)
+  const mapPins = useMemo(
+    () => (tracking && selectedPin ? [selectedPin] : filteredPins),
+    [tracking, selectedPin, filteredPins],
+  );
 
   // Carga los avistamientos de una alerta (más reciente primero — ya viene
   // ordenado así de getSightingsForAlerta) y los deja en el estado del card.
@@ -317,10 +433,35 @@ export default function MapScreen({ navigation }) {
   }, [slideAnim, loadSightings]);
 
   const hideCard = useCallback(() => {
+    setTracking(false);
     Animated.timing(slideAnim, { toValue: 300, duration: 220, useNativeDriver: true }).start(
       () => setSelectedPin(null)
     );
   }, [slideAnim]);
+
+  const startTracking = useCallback(() => setTracking(true), []);
+  const stopTracking  = useCallback(() => setTracking(false), []);
+
+  // "¡Ya lo encontré!" (solo el dueño): confirma y marca la alerta como resuelta.
+  // RLS de alertas: solo el dueño puede modificarla ("Gestionar alertas propias").
+  const confirmFoundNow = useCallback(async () => {
+    const pin = confirmFound;
+    if (!pin || resolving) return;
+    setResolving(true);
+    try {
+      await resolverAlerta(pin.id);
+      setConfirmFound(null);
+      hideCard();
+      setPins((prev) => prev.filter((p) => p.id !== pin.id)); // sale del mapa ya, sin esperar la recarga
+      loadAlerts();
+      setInfoMessage({ title: `🎉 ¡Qué alegría!`, body: `${pin.name} ya figura como encontrado/a y dejó de aparecer como perdido/a en el mapa.` });
+    } catch (e) {
+      setConfirmFound(null);
+      setInfoMessage({ title: 'No pudimos marcarlo', body: 'Revisá tu conexión y probá de nuevo. También podés hacerlo desde Perfil → Mis reportes.' });
+    } finally {
+      setResolving(false);
+    }
+  }, [confirmFound, resolving, hideCard, loadAlerts]);
 
   // Tiempo real del recorrido: un avistamiento nuevo de la mascota abierta
   // extiende la línea sin recargar.
@@ -449,7 +590,34 @@ export default function MapScreen({ navigation }) {
         </View>
       </View>
 
-      {/* ── Filtros ── */}
+      {/* ── Confirmar "¡Ya lo encontré!" (solo el dueño) ── */}
+      <Modal visible={!!confirmFound} transparent animationType="fade" onRequestClose={() => !resolving && setConfirmFound(null)}>
+        <Pressable style={scr.modalBackdrop} onPress={() => !resolving && setConfirmFound(null)}>
+          <Pressable style={scr.modalBox} onPress={() => {}}>
+            <Text style={scr.modalTitle}>¿Ya encontraste a {confirmFound?.name}?</Text>
+            <Text style={scr.modalSub}>
+              La alerta se marca como resuelta y deja de aparecer como perdida en el mapa y en "Cerca de ti".
+            </Text>
+            <View style={{ gap: SPACING.sm, marginTop: SPACING.md }}>
+              <Pressable
+                style={[scr.modalBtn, { backgroundColor: '#15803D', opacity: resolving ? 0.6 : 1 }]}
+                onPress={confirmFoundNow}
+                disabled={resolving}
+                accessibilityRole="button"
+              >
+                <Text style={scr.modalBtnText}>{resolving ? 'Marcando…' : 'Sí, ya está en casa'}</Text>
+              </Pressable>
+              <Pressable style={scr.modalCancelBtn} onPress={() => setConfirmFound(null)} disabled={resolving}
+                accessibilityRole="button">
+                <Text style={scr.modalCancelTxt}>Cancelar</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* ── Filtros (ocultos en modo rastreo: más lugar para el mapa) ── */}
+      {!tracking && (
       <View style={scr.filterBar}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={scr.filterRow}>
           {FILTERS.map(f => (
@@ -468,10 +636,12 @@ export default function MapScreen({ navigation }) {
           ))}
         </ScrollView>
       </View>
+      )}
 
       {/* ── Mapa Leaflet (mapa real) ── */}
       <LeafletMap
-        pins={filteredPins}
+        pins={mapPins}
+        dark={tracking}
         userLocation={userLocation}
         centerLat={center.lat}
         centerLng={center.lng}
@@ -482,7 +652,8 @@ export default function MapScreen({ navigation }) {
         style={{ flex: 1 }}
       />
 
-      {/* ── Leyenda ── */}
+      {/* ── Leyenda (oculta en modo rastreo) ── */}
+      {!tracking && (
       <View style={scr.legend}>
         {[
           { color: '#DC2626', label: 'Perdido' },
@@ -496,21 +667,49 @@ export default function MapScreen({ navigation }) {
           </View>
         ))}
       </View>
+      )}
 
-      {/* ── Card de detalle slide-up ── */}
+      {/* ── Card de detalle slide-up (en rastreo: barra chica abajo) ── */}
       {selectedPin && (
         <Animated.View
-          style={[scr.cardSlot, isDesktop && scr.cardSlotWide, { transform: [{ translateY: slideAnim }] }]}
-          onLayout={(e) => setCardHeight(Math.round(e.nativeEvent.layout.height))}
+          style={[
+            scr.cardSlot,
+            tracking ? scr.cardSlotTracking : (isDesktop && scr.cardSlotWide),
+            { transform: [{ translateY: slideAnim }] },
+          ]}
         >
-          <PinCard
-            pin={selectedPin}
-            onClose={hideCard}
-            onContact={handleContact}
-            onLoVi={handleLoVi}
-            sightings={sightings}
-            loadingSightings={loadingSightings}
-          />
+          {/* Se mide el contenido (y no el Animated.View): con key por modo se
+              vuelve a montar al pasar tarjeta ↔ barra y onLayout se dispara
+              seguro. Antes el alto quedaba el de la tarjeta grande y el mapa
+              reservaba ~420 px abajo para una barra de 174. */}
+          <View
+            key={tracking ? 'trk' : 'card'}
+            onLayout={(e) => setCardHeight(
+              Math.round(e.nativeEvent.layout.height) + (tracking ? SPACING.md : SPACING.xl + 8)
+            )}
+          >
+          {tracking ? (
+            <TrackingBar
+              pin={selectedPin}
+              track={track}
+              sightings={sightings}
+              onExit={stopTracking}
+              onLoVi={handleLoVi}
+            />
+          ) : (
+            <PinCard
+              pin={selectedPin}
+              onClose={hideCard}
+              onContact={handleContact}
+              onLoVi={handleLoVi}
+              onTrack={startTracking}
+              onFound={setConfirmFound}
+              isOwner={!!currentUser?.id && currentUser.id === selectedPin.user_id}
+              sightings={sightings}
+              loadingSightings={loadingSightings}
+            />
+          )}
+          </View>
         </Animated.View>
       )}
 
@@ -524,7 +723,8 @@ export default function MapScreen({ navigation }) {
         />
       )}
 
-      {/* ── FAB Reportar ── */}
+      {/* ── FAB Reportar (oculto en rastreo: tapaba la barra) ── */}
+      {!tracking && (
       <Pressable
         style={scr.fab}
         onPress={() => navigation.navigate('Reportar')}
@@ -534,6 +734,7 @@ export default function MapScreen({ navigation }) {
         <Text style={scr.fabIcon}>＋</Text>
         <Text style={scr.fabLabel}>Reportar</Text>
       </Pressable>
+      )}
     </View>
   );
 }
@@ -595,6 +796,11 @@ const scr = StyleSheet.create({
   // recorrido de avistamientos se vea a la derecha (antes tapaba todo el mapa).
   cardSlotWide: {
     right: undefined, width: CARD_WIDE_WIDTH + SPACING.lg * 2,
+  },
+  // Modo rastreo: barra chica abajo, centrada, sin tapar el mapa
+  cardSlotTracking: {
+    paddingHorizontal: SPACING.md, paddingBottom: SPACING.md,
+    maxWidth: 560, marginHorizontal: 'auto', // centrada en pantallas anchas
   },
 
   fab: {
