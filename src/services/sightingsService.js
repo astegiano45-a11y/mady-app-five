@@ -1,7 +1,16 @@
 // sightingsService — Guardar avistamientos de mascotas perdidas
 import { supabase } from '../lib/supabase';
+import { uploadPhoto } from './photoUploadService';
 
-export async function createSighting(alertaId, lat, lng, description = null) {
+// Sube la foto del avistamiento y devuelve su URL pública.
+// Ruta: mascotas/avistamientos/<alerta_id>/<timestamp>.jpg
+export function uploadSightingPhoto(alertaId, photo) {
+  return uploadPhoto(`avistamientos/${alertaId}/${Date.now()}.jpg`, photo);
+}
+
+// lat/lng: ubicación tomada en el momento de la foto.
+// description: nota opcional escrita por quien la vio.
+export async function createSighting({ alertaId, lat, lng, photoUrl = null, description = null }) {
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('No user logged in');
@@ -13,7 +22,8 @@ export async function createSighting(alertaId, lat, lng, description = null) {
         user_id: user.id,
         lat,
         lng,
-        description,
+        photo_url: photoUrl,
+        description: description?.trim() || null,
       })
       .select()
       .single();

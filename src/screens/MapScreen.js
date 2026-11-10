@@ -12,7 +12,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import LeafletMap from '../components/LeafletMap';
 import { getCurrentLocation, reverseGeocode } from '../services/LocationService';
 import { COLORS, FONTS, RADIUS, SHADOW, SPACING } from '../theme';
-import { createSighting, getSightingsForAlerta } from '../services/sightingsService';
+import { getSightingsForAlerta } from '../services/sightingsService';
+import SightingCaptureModal from '../components/SightingCaptureModal';
 import { alertCoords } from '../services/proximityService';
 import { timeAgo, sightingPlaceLabel, sightingNote } from '../utils/sightings';
 
@@ -29,7 +30,7 @@ const TYPE_INFO = {
 };
 
 // ── Card de detalle slide-up ──────────────────────────────────────────────────
-function PinCard({ pin, onClose, onContact, onLoVi, reportingSighting, sightings = [], loadingSightings }) {
+function PinCard({ pin, onClose, onContact, onLoVi, sightings = [], loadingSightings }) {
   if (!pin) return null;
   const t = TYPE_INFO[pin.type] || TYPE_INFO.lost;
   // Punto donde se perdió: solo si la alerta tiene coordenadas reales. Si cae
@@ -74,15 +75,12 @@ function PinCard({ pin, onClose, onContact, onLoVi, reportingSighting, sightings
         </Pressable>
         {pin.type === 'lost' && (
           <Pressable
-            style={[card.btn, { backgroundColor: '#10B981', opacity: reportingSighting ? 0.6 : 1 }]}
+            style={[card.btn, { backgroundColor: '#10B981' }]}
             onPress={() => onLoVi(pin)}
-            disabled={reportingSighting}
             accessibilityRole="button"
-            accessibilityLabel={`Reportar avistamiento de ${pin.name}`}
+            accessibilityLabel={`Reportar avistamiento de ${pin.name} con una foto`}
           >
-            <Text style={card.btnText}>
-              {reportingSighting ? '⏳ Registrando...' : '👀 Lo vi aquí'}
-            </Text>
+            <Text style={card.btnText}>📷 Lo vi aquí</Text>
           </Pressable>
         )}
       </View>
@@ -103,7 +101,10 @@ function PinCard({ pin, onClose, onContact, onLoVi, reportingSighting, sightings
                 const note = sightingNote(s);
                 return (
                   <View key={s.id} style={card.sightingRow}>
-                    <View style={card.sightingDot} />
+                    {s.photo_url
+                      ? <Image source={{ uri: s.photo_url }} style={card.sightingThumb} resizeMode="cover"
+                          accessibilityLabel="Foto del avistamiento" />
+                      : <View style={card.sightingDot} />}
                     <View style={{ flex: 1 }}>
                       <Text style={card.sightingText}>{sightingPlaceLabel(s, lostPoint)}</Text>
                       {!!note && <Text style={card.sightingNote}>“{note}”</Text>}
@@ -147,6 +148,7 @@ const card = StyleSheet.create({
   sightingsList:  { maxHeight: 140, marginTop: 4 },
   sightingRow:    { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingVertical: 6 },
   sightingDot:    { width: 6, height: 6, borderRadius: 3, backgroundColor: '#10B981', marginTop: 6 },
+  sightingThumb:  { width: 40, height: 40, borderRadius: 8, backgroundColor: '#F3F4F6' },
   sightingText:   { fontSize: FONTS.xs, color: '#374151', fontWeight: '500' },
   sightingNote:   { fontSize: FONTS.xs, color: '#6B7280', fontStyle: 'italic', marginTop: 1 },
   sightingTime:   { fontSize: 10, color: '#9CA3AF', marginTop: 1 },
@@ -161,8 +163,7 @@ export default function MapScreen({ navigation }) {
   const [filter,       setFilter]       = useState('all');
   const [selectedPin,  setSelectedPin]  = useState(null);
   const [pins, setPins] = useState(FALLBACK_PINS);
-  const [reportingSighting, setReportingSighting] = useState(false);
-  const [sightingSuccess, setSightingSuccess] = useState(false);
+  const [capturePin, setCapturePin] = useState(null); // mascota para la que se está cargando un avistamiento
   const [sightings, setSightings] = useState([]);
   const [loadingSightings, setLoadingSightings] = useState(false);
   // Reemplazan Alert.alert en todo este screen: react-native-web (lo que
@@ -295,30 +296,17 @@ export default function MapScreen({ navigation }) {
     }
   }, []);
 
-  const handleLoVi = useCallback(async (pin) => {
-    if (reportingSighting) return;
-    setReportingSighting(true);
-    try {
-      const myLoc = await getCurrentLocation();
-      if (!myLoc) {
-        setInfoMessage({ title: 'Ubicación', body: 'No pudimos obtener tu ubicación. Verificá los permisos.' });
-        setReportingSighting(false);
-        return;
-      }
-      // Sin description automática: el lugar se calcula al mostrarlo, a partir
-      // del lat/lng real (sightingPlaceLabel). description queda para una nota
-      // escrita por quien la vio (etapa 2).
-      await createSighting(pin.id, myLoc.lat, myLoc.lng);
-      setSightingSuccess(true);
-      setTimeout(() => setSightingSuccess(false), 3000);
-      await loadSightings(pin.id); // refresca la lista — el nuevo avistamiento aparece al toque
-      setInfoMessage({ title: '✅ Avistamiento registrado', body: `¡Gracias! Tu reporte ayuda al dueño a encontrar a ${pin.name}.` });
-    } catch (err) {
-      setInfoMessage({ title: 'Error', body: 'No pudimos registrar el avistamiento. Intenta de nuevo.' });
-    } finally {
-      setReportingSighting(false);
-    }
-  }, [reportingSighting, loadSightings]);
+  // "Lo vi aquí" abre la captura con foto (SightingCaptureModal): la foto, el
+  // GPS del momento de la foto y la nota se guardan juntos.
+  const handleLoVi = useCallback((pin) => setCapturePin(pin), []);
+
+  const handleSightingSubmitted = useCallback(async () => {
+    const pin = capturePin;
+    setCapturePin(null);
+    if (!pin) return;
+    await loadSightings(pin.id); // refresca la lista — el nuevo avistamiento aparece al toque
+    setInfoMessage({ title: '✅ Avistamiento registrado', body: `¡Gracias! Tu foto y tu ubicación ayudan al dueño a encontrar a ${pin.name}.` });
+  }, [capturePin, loadSightings]);
 
   const lostCount = pins.filter(p => p.type === 'lost').length;
 
@@ -437,11 +425,20 @@ export default function MapScreen({ navigation }) {
             onClose={hideCard}
             onContact={handleContact}
             onLoVi={handleLoVi}
-            reportingSighting={reportingSighting}
             sightings={sightings}
             loadingSightings={loadingSightings}
           />
         </Animated.View>
+      )}
+
+      {/* ── "Lo vi aquí": foto + GPS del momento + nota ── */}
+      {capturePin && (
+        <SightingCaptureModal
+          pin={capturePin}
+          lostPoint={capturePin.exactLocation ? { lat: capturePin.lat, lng: capturePin.lng } : null}
+          onClose={() => setCapturePin(null)}
+          onSubmitted={handleSightingSubmitted}
+        />
       )}
 
       {/* ── FAB Reportar ── */}

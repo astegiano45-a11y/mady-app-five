@@ -17,6 +17,7 @@ import { C } from '../theme/colors';
 import { R, S } from '../theme/spacing';
 import { T } from '../theme/typography';
 import { crearAlerta } from '../services/alertasService';
+import { uploadPhoto } from '../services/photoUploadService';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { getCurrentLocation, distanceKm } from '../services/LocationService';
@@ -97,25 +98,8 @@ function StepTipo({ onSelect }) {
   );
 }
 
-async function uploadFoto(uri, base64) {
-  const path = `reportes/${Date.now()}.jpg`;
-
-  if (Platform.OS === 'web' || base64) {
-    // En web usamos base64
-    const base64Data = base64 || uri.split(',')[1];
-    const byteChars  = atob(base64Data);
-    const byteNums   = new Array(byteChars.length).fill(0).map((_, i) => byteChars.charCodeAt(i));
-    const blob = new Blob([new Uint8Array(byteNums)], { type: 'image/jpeg' });
-    const { error } = await supabase.storage.from('mascotas').upload(path, blob, { contentType: 'image/jpeg', upsert: true });
-    if (error) throw error;
-  } else {
-    const resp = await fetch(uri);
-    const blob = await resp.blob();
-    const { error } = await supabase.storage.from('mascotas').upload(path, blob, { upsert: true });
-    if (error) throw error;
-  }
-
-  return supabase.storage.from('mascotas').getPublicUrl(path).data.publicUrl;
+function uploadFoto(uri, base64) {
+  return uploadPhoto(`reportes/${Date.now()}.jpg`, { uri, base64 });
 }
 
 // ── Paso 2: completar datos ───────────────────────────────────────────────────
