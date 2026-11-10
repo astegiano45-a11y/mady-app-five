@@ -1,8 +1,20 @@
 // LeafletMap.web.js — Versión web que carga Leaflet directamente en el DOM
 // Expo resuelve .web.js automáticamente en plataforma web
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
+import { TRACK_SCRIPT } from './mapTrackScript';
+
+// Instala window.__madyTrack (y su CSS) una sola vez por página
+function installTrackScript() {
+  if (window.__madyTrack) return;
+  // eslint-disable-next-line no-new-func
+  new Function(TRACK_SCRIPT)();
+  const style = document.createElement('style');
+  style.setAttribute('data-mady-track', '');
+  style.textContent = window.__madyTrack.css;
+  document.head.appendChild(style);
+}
 
 const LEAFLET_CSS = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css';
 const LEAFLET_JS  = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js';
@@ -37,10 +49,15 @@ export default function LeafletMap({
   centerLng = -67.7100,
   zoom = 13,
   onPinContact,
+  track = null,          // recorrido de avistamientos (buildTrack) — etapa 3
+  trackPadding = null,   // [arriba, derecha, abajo, izquierda] px libres de la tarjeta
   style,
 }) {
   const mapDivRef = useRef(null);
   const mapRef    = useRef(null);
+  const trackRef  = useRef(null);
+  // Se incrementa cada vez que se (re)crea el mapa, para redibujar el recorrido
+  const [mapVersion, setMapVersion] = useState(0);
 
   useEffect(() => {
     let mounted = true;
@@ -70,6 +87,9 @@ export default function LeafletMap({
         }).addTo(map);
 
         mapRef.current = map;
+        trackRef.current = null;
+        installTrackScript();
+        setMapVersion((v) => v + 1);
 
         // Pin de usuario
         if (userLocation) {
@@ -134,6 +154,8 @@ export default function LeafletMap({
             const container = marker.getPopup().getElement();
             if (!container) return;
             container.addEventListener('pin-contact', function(e) {
+              // Cerrar el globo: si no, tapa el recorrido que se dibuja al abrir la tarjeta
+              map.closePopup();
               if (onPinContact) onPinContact(e.detail);
             });
           });
@@ -154,6 +176,17 @@ export default function LeafletMap({
       }
     };
   }, [pins, userLocation, centerLat, centerLng, zoom]);
+
+  // Recorrido de avistamientos: se dibuja en su propia capa, sin recrear el mapa
+  useEffect(() => {
+    const map = mapRef.current;
+    const L = window.L;
+    if (!map || !L || !window.__madyTrack) return;
+    if (trackRef.current) { trackRef.current.remove(); trackRef.current = null; }
+    if (track) {
+      trackRef.current = window.__madyTrack.draw(L, map, track, { padding: trackPadding });
+    }
+  }, [track, trackPadding, mapVersion]);
 
   return (
     <View style={[s.container, style]}>
