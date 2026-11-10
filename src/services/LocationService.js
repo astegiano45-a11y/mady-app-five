@@ -9,11 +9,15 @@ export async function requestPermission() {
   return status === 'granted';
 }
 
-export async function getCurrentLocation() {
+// highAccuracy: GPS preciso (avistamientos, donde importa el punto exacto).
+// Por defecto Balanced (~100 m), que alcanza para "cerca tuyo" y gasta menos batería.
+export async function getCurrentLocation({ highAccuracy = false } = {}) {
   const ok = await requestPermission();
   if (!ok) return null;
   try {
-    const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+    const loc = await Location.getCurrentPositionAsync({
+      accuracy: highAccuracy ? Location.Accuracy.High : Location.Accuracy.Balanced,
+    });
     return { lat: loc.coords.latitude, lng: loc.coords.longitude };
   } catch { return null; }
 }
