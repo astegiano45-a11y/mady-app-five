@@ -18,6 +18,8 @@ import { R, S } from '../theme/spacing';
 import { T } from '../theme/typography';
 import { crearAlerta } from '../services/alertasService';
 import { uploadPhoto } from '../services/photoUploadService';
+import LocationPicker from '../components/LocationPicker';
+import { nearestZone, ZONE_COORDS } from '../utils/geo';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { getCurrentLocation, distanceKm } from '../services/LocationService';
@@ -119,14 +121,38 @@ function StepDatos({ tipo, onBack, onSubmit, loading, initialPet, onDirtyChange,
   const [uploading, setUploading] = useState(false);
   const [error,     setError]     = useState('');
 
+  // ¿Dónde se perdió? (etapa 4) — solo para "Perdí mi mascota". Es el inicio
+  // del recorrido de avistamientos en el mapa. null = todavía no lo marcó.
+  const askLostPoint = tipo.id === 'lost';
+  const [lostPoint,  setLostPoint]  = useState(null);
+  const [zoneByHand, setZoneByHand] = useState(false); // eligió la zona tocando un chip
+  const [locating,   setLocating]   = useState(false);
+
+  const pickLostPoint = (pt) => {
+    setLostPoint(pt);
+    // Sugerir la zona según el punto, salvo que la haya elegido a mano
+    if (!zoneByHand) { const z = nearestZone(pt.lat, pt.lng); if (z) setZone(z); }
+  };
+  const useMyLocation = async () => {
+    setLocating(true);
+    setError('');
+    try {
+      const loc = await getCurrentLocation({ highAccuracy: true });
+      if (loc) pickLostPoint(loc);
+      else setError('No pudimos obtener tu ubicación. Marcá el lugar tocando el mapa.');
+    } finally {
+      setLocating(false);
+    }
+  };
+
   const canSubmit = name.trim().length >= 2 && zone.length > 0;
 
   // Avisa al padre si hay algo cargado, para poder confirmar antes de
   // descartar el formulario (botón atrás del header / "← Volver").
   useEffect(() => {
-    const dirty = name.trim().length > 0 || zone.length > 0 || desc.trim().length > 0 || !!photo;
+    const dirty = name.trim().length > 0 || zone.length > 0 || desc.trim().length > 0 || !!photo || !!lostPoint;
     onDirtyChange?.(dirty);
-  }, [name, zone, desc, photo]);
+  }, [name, zone, desc, photo, lostPoint]);
 
   const pickPhoto = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -150,7 +176,11 @@ function StepDatos({ tipo, onBack, onSubmit, loading, initialPet, onDirtyChange,
       try { photoUrl = await uploadFoto(photo.uri, photo.base64); } catch (e) { console.log('upload err', e); }
       setUploading(false);
     }
-    onSubmit({ name: name.trim(), zone, description: desc.trim(), type: tipo.id, photo_url: photoUrl });
+    onSubmit({
+      name: name.trim(), zone, description: desc.trim(), type: tipo.id, photo_url: photoUrl,
+      // Punto marcado en el mapa; si no lo marcó, handleSubmit usa el GPS como antes
+      lostPoint: askLostPoint ? lostPoint : null,
+    });
   };
 
   return (
@@ -190,7 +220,7 @@ function StepDatos({ tipo, onBack, onSubmit, loading, initialPet, onDirtyChange,
               <TouchableOpacity
                 key={z}
                 style={[st.zonaChip, zone === z && { backgroundColor: tipo.bg, borderColor: tipo.bg }]}
-                onPress={() => setZone(z)}
+                onPress={() => { setZone(z); setZoneByHand(true); }}
               >
                 <Text style={[st.zonaChipTxt, zone === z && { color: C.white }]}>{z}</Text>
               </TouchableOpacity>
@@ -198,6 +228,36 @@ function StepDatos({ tipo, onBack, onSubmit, loading, initialPet, onDirtyChange,
           </View>
         </ScrollView>
       </View>
+
+      {/* ¿Dónde se perdió? — inicio del recorrido de avistamientos */}
+      {askLostPoint && (
+        <View style={st.fieldWrap}>
+          <Text style={st.fieldLabel}>¿Dónde se perdió? (recomendado)</Text>
+          <Text style={st.fieldHint}>
+            {lostPoint
+              ? `⚑ Marcado ${nearestZone(lostPoint.lat, lostPoint.lng) ? `cerca de ${nearestZone(lostPoint.lat, lostPoint.lng)}` : ''}. Podés arrastrar la bandera para corregirlo.`
+              : 'Tocá el mapa o arrastrá la bandera hasta el lugar donde la viste por última vez.'}
+          </Text>
+          <LocationPicker
+            value={lostPoint}
+            center={zone ? ZONE_COORDS[zone] : null}
+            onChange={pickLostPoint}
+            height={220}
+            style={{ marginTop: 8 }}
+          />
+          <TouchableOpacity
+            style={[st.locBtn, { borderColor: tipo.bg + '60' }]}
+            onPress={useMyLocation}
+            disabled={locating}
+            accessibilityRole="button"
+          >
+            <MapPin size={16} color={tipo.bg} strokeWidth={2} />
+            <Text style={[st.locBtnTxt, { color: tipo.bg }]}>
+              {locating ? 'Buscando tu ubicación…' : 'Se perdió acá, donde estoy ahora'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Descripción */}
       <View style={st.fieldWrap}>
@@ -288,7 +348,9 @@ function StepConfirm({ tipo, name, zone, onReset, hasLocation }) {
         <View style={[st.confirmCard, { borderColor: '#16A34A30', backgroundColor: '#F0FDF4' }]}>
           <MapPin size={16} color="#16A34A" strokeWidth={2} />
           <Text style={[st.confirmCardTxt, { color: '#16A34A' }]}>
-            Guardamos tu ubicación exacta para este reporte
+            {hasLocation === 'marked'
+              ? 'Guardamos el lugar que marcaste en el mapa'
+              : 'Guardamos tu ubicación exacta para este reporte'}
           </Text>
         </View>
       ) : (
@@ -322,7 +384,7 @@ export default function ReportarScreen({ navigation, route }) {
   const [tipo,     setTipo]     = useState(petParam ? TIPOS.find(t => t.id === 'lost') : null);
   const [result,   setResult]   = useState(null);
   const [loading,  setLoading]  = useState(false);
-  const [hasLocation, setHasLocation] = useState(false); // ¿la alerta quedó geolocalizada?
+  const [hasLocation, setHasLocation] = useState(null); // 'marked' (punto del mapa) | 'gps' | null
   const [formDirty, setFormDirty] = useState(false); // ¿hay datos cargados en el paso 2?
   const [submitError, setSubmitError] = useState(''); // error real de guardado (found/adoption)
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
@@ -358,15 +420,19 @@ export default function ReportarScreen({ navigation, route }) {
       let coords = null;
       try { coords = await getCurrentLocation(); } catch {}
 
-      // 1. Crear alerta — con lat/lng reales si los conseguimos; si no,
-      //    quedan null y el mapa cae al fallback de zona que ya existía.
+      // 1. Crear alerta. Ubicación, en orden de preferencia:
+      //    a) el punto que marcó en el mapa ("¿Dónde se perdió?", etapa 4)
+      //    b) el GPS de donde está ahora (comportamiento anterior)
+      //    c) null → el mapa cae al centro aproximado de la zona
+      const { lostPoint, ...campos } = datos; // lostPoint no es columna de alertas
+      const point = lostPoint || coords;
       const alerta = await crearAlerta({
-        ...datos,
-        lat: coords?.lat ?? null,
-        lng: coords?.lng ?? null,
+        ...campos,
+        lat: point?.lat ?? null,
+        lng: point?.lng ?? null,
         mascota_id: petParam?.id ?? null,
       });
-      setHasLocation(!!coords);
+      setHasLocation(lostPoint ? 'marked' : coords ? 'gps' : null);
 
       // 2. Actualizar mi ubicación + notificar usuarios cercanos
       //    (reusa la misma ubicación ya pedida arriba, no vuelve a preguntar)
@@ -590,6 +656,12 @@ const st = StyleSheet.create({
     backgroundColor: C.cloud,
   },
   photoBtnTxt: { fontSize: T.sm, fontWeight: '600' },
+  fieldHint: { fontSize: T.xs, color: C.inkMid, lineHeight: 18 },
+  locBtn: {
+    marginTop: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    paddingVertical: 11, borderRadius: R.xl, borderWidth: 1.5, backgroundColor: C.white,
+  },
+  locBtnTxt: { fontSize: T.sm, fontWeight: '600' },
   photoPreviewWrap: { position: 'relative' },
   photoPreview: { width: '100%', height: 160, borderRadius: R.xl },
   photoRemove: {

@@ -36,6 +36,17 @@ export async function createSighting({ alertaId, lat, lng, photoUrl = null, desc
   }
 }
 
+// Tiempo real: avisa cuando se carga un avistamiento nuevo de esa alerta.
+// Devuelve el canal (cerrarlo con supabase.removeChannel).
+export function suscribirAvistamientos(alertaId, callback, channelName = `avistamientos-${alertaId}`) {
+  return supabase
+    .channel(channelName)
+    .on('postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'sightings', filter: `alerta_id=eq.${alertaId}` },
+      callback)
+    .subscribe();
+}
+
 export async function getSightingsForAlerta(alertaId) {
   try {
     const { data, error } = await supabase
