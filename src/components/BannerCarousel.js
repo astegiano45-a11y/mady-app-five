@@ -11,11 +11,11 @@
 //
 //  Si no hay banners activos no renderiza nada (no ocupa espacio).
 // ─────────────────────────────────────────────────────────────────────────────
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, StyleSheet, Pressable, Animated, Image, Platform, Linking,
 } from 'react-native';
-import { useVideoPlayer, VideoView } from 'expo-video';
+import BannerVideo from './BannerVideo';
 
 import { getBannerAds } from '../services/bannerAdsService';
 import { C }            from '../theme/colors';
@@ -38,32 +38,7 @@ function BannerSlide({ banner, active, onPress }) {
   const opacity = useRef(new Animated.Value(active ? 1 : 0)).current;
   const [failed, setFailed] = useState(false);
   const isVideo = banner.tipo === 'video';
-
-  // Player siempre creado (regla de hooks); si no es video, source null → idle.
-  // Se crea igual estando inactiva (así el crossfade no arranca en negro
-  // esperando buffer), pero play/pause están atados a `active`: solo la
-  // slide visible reproduce — el resto queda pausada.
-  const player = useVideoPlayer(isVideo ? banner.imagen_url : null, (p) => {
-    p.loop = true;
-    p.muted = true;
-  });
-
-  useEffect(() => {
-    if (!isVideo) return;
-    if (active) {
-      player.play();
-    } else {
-      player.pause();
-    }
-  }, [active, isVideo, player]);
-
-  useEffect(() => {
-    if (!isVideo) return;
-    const sub = player.addListener('statusChange', (status) => {
-      if (status === 'error') setFailed(true);
-    });
-    return () => sub.remove();
-  }, [player, isVideo]);
+  const onVideoError = useCallback(() => setFailed(true), []);
 
   useEffect(() => {
     Animated.timing(opacity, {
@@ -81,13 +56,10 @@ function BannerSlide({ banner, active, onPress }) {
       {!failed && (
         <Pressable style={StyleSheet.absoluteFillObject} onPress={onPress}>
           {isVideo ? (
-            <VideoView
-              player={player}
-              style={[StyleSheet.absoluteFillObject, { width: '100%', height: '100%' }]}
-              contentFit="cover"
-              nativeControls={false}
-              pointerEvents="none"
-            />
+            // Se monta aunque la slide esté inactiva (el crossfade no arranca
+            // en negro esperando buffer); solo reproduce la activa.
+            // En la web lleva playsinline: en iPhone no abre pantalla completa.
+            <BannerVideo uri={banner.imagen_url} active={active} onError={onVideoError} />
           ) : (
             <Image
               source={{ uri: banner.imagen_url }}
