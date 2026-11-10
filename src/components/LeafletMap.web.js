@@ -12,6 +12,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { TRACK_SCRIPT } from './mapTrackScript';
 import { loadLeaflet } from './leafletLoader.web';
+import { distanceKm } from '../utils/geo';
 
 const TYPE_CFG = {
   lost:     { color: '#DC2626', label: 'PERDIDO',    btn: 'Lo vi' },
@@ -26,6 +27,13 @@ function esc(s) {
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 const safePhoto = (p) => (typeof p === 'string' && p.startsWith('https://') ? esc(p) : null);
+
+// Mi ubicación entra en el encuadre del recorrido solo si estoy cerca
+// (≤ 5 km del objetivo): si estoy en otra ciudad, el mapa no se aleja tanto.
+function nearbyMe(m) {
+  if (!m?.me || !m.target) return null;
+  return distanceKm(m.me.lat, m.me.lng, m.target.lat, m.target.lng) <= 5 ? [m.me.lat, m.me.lng] : null;
+}
 
 // Instala window.__madyTrack (y su CSS) una sola vez por página
 function installTrackScript() {
@@ -86,6 +94,8 @@ export default function LeafletMap({
   track = null,          // recorrido de avistamientos (buildTrack) — etapa 3
   trackPadding = null,   // [arriba, derecha, abajo, izquierda] px libres de la tarjeta
   dark = false,          // modo rastreo: mapa oscuro
+  me = null,             // modo rastreo: mi ubicación en vivo { lat, lng, accuracy }
+  meTarget = null,       // hasta dónde va la línea desde mi ubicación (último avistamiento)
   style,
 }) {
   const mapDivRef  = useRef(null);
@@ -93,6 +103,9 @@ export default function LeafletMap({
   const pinsLayer  = useRef(null);
   const userLayer  = useRef(null);
   const trackLayer = useRef(null);
+  const meLayer    = useRef(null);
+  const meRef      = useRef(null);
+  meRef.current = me ? { me, target: meTarget } : null;
   const [ready, setReady] = useState(false);
   // Último onPinContact sin tener que volver a crear los marcadores
   const onPinContactRef = useRef(onPinContact);
@@ -185,7 +198,11 @@ export default function LeafletMap({
     if (!L || !map || !window.__madyTrack) return;
     if (trackLayer.current) { trackLayer.current.remove(); trackLayer.current = null; }
     const args = lastTrackArgs.current;
-    if (args?.track) trackLayer.current = window.__madyTrack.draw(L, map, args.track, { padding: args.padding });
+    if (args?.track) {
+      trackLayer.current = window.__madyTrack.draw(L, map, args.track, {
+        padding: args.padding, include: nearbyMe(meRef.current),
+      });
+    }
   };
   useEffect(() => {
     if (!ready) return;
@@ -193,6 +210,20 @@ export default function LeafletMap({
     mapRef.current?.invalidateSize({ pan: false });
     drawTrack();
   }, [ready, track, trackPadding]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 6) Mi ubicación en vivo (modo rastreo): se redibuja en cada actualización
+  //    sin mover el mapa. Con la PRIMERA ubicación, se re-encuadra una vez para
+  //    que entren yo y el recorrido (si estoy a menos de 5 km).
+  const hadMe = useRef(false);
+  useEffect(() => {
+    const L = window.L;
+    const map = mapRef.current;
+    if (!ready || !L || !map || !window.__madyTrack) return;
+    if (meLayer.current) { meLayer.current.remove(); meLayer.current = null; }
+    if (me) meLayer.current = window.__madyTrack.drawMe(L, map, me, meTarget);
+    if (me && !hadMe.current && lastTrackArgs.current?.track) drawTrack();
+    hadMe.current = !!me;
+  }, [ready, me, meTarget]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Si el contenedor cambia de tamaño (ej. al entrar en modo rastreo se ocultan
   // filtros y leyenda y el mapa crece), Leaflet tiene que recalcular su tamaño;

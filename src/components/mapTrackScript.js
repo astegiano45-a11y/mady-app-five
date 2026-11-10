@@ -50,6 +50,14 @@ const CSS = `
 .mady-trk-lost.dk{background:#0B1220;border-color:#E5E7EB}
 .mady-trk-last.dk .ring{border-color:#F43F5E}
 .mady-trk-last.dk .face{background:#F43F5E;box-shadow:0 0 18px rgba(244,63,94,.85)}
+/* Mi ubicación en vivo: punto azul con halo */
+.mady-me{position:relative;width:20px;height:20px}
+.mady-me .halo{position:absolute;inset:-10px;border-radius:50%;background:rgba(59,130,246,.35);
+  animation:madyMe 2s ease-out infinite}
+.mady-me .dot{position:absolute;inset:0;border-radius:50%;background:#3B82F6;border:3px solid #fff;
+  box-shadow:0 0 10px rgba(59,130,246,.9)}
+@keyframes madyMe{0%{transform:scale(.6);opacity:1}100%{transform:scale(1.6);opacity:0}}
+@media (prefers-reduced-motion: reduce){.mady-me .halo{animation:none;opacity:.5}}
 .mady-trk-zone{display:inline-block;white-space:nowrap;transform:translate(-50%,-50%);
   background:rgba(245,158,11,.95);color:#111827;border-radius:999px;padding:3px 10px;
   font:800 11px -apple-system,BlinkMacSystemFont,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.4)}
@@ -150,6 +158,8 @@ export const TRACK_SCRIPT = `
     var pad = opts.padding || [40,40,40,40];
     var bounds = L.latLngBounds(latlngs);
     boundsLayers.forEach(function(l){ bounds.extend(l.getBounds()); });
+    // opts.include: [lat, lng] extra para el encuadre (ej. mi ubicación, si estoy cerca)
+    if (opts.include) bounds.extend(opts.include);
     if (latlngs.length === 1 && !boundsLayers.length) {
       map.setView(latlngs[0], Math.max(map.getZoom(), 15));
     } else {
@@ -160,7 +170,29 @@ export const TRACK_SCRIPT = `
     return group;
   }
 
-  window.__madyTrack = { css: ${JSON.stringify(CSS)}, draw: draw };
+  // Mi ubicación en vivo (modo rastreo): punto azul, círculo de precisión del
+  // GPS y línea punteada hasta el objetivo (el último avistamiento). NO mueve
+  // ni re-encuadra el mapa: se redibuja en cada actualización mientras caminás.
+  function drawMe(L, map, me, target){
+    var group = L.layerGroup().addTo(map);
+    if (!me) return group;
+    var here = [me.lat, me.lng];
+    if (target) {
+      L.polyline([here, [target.lat, target.lng]], { color:'#60A5FA', weight:3, opacity:.9,
+        dashArray:'2 8', lineCap:'round', interactive:false }).addTo(group);
+    }
+    if (me.accuracy && me.accuracy > 15 && me.accuracy < 500) {
+      L.circle(here, { radius: me.accuracy, color:'#3B82F6', weight:1, opacity:.4,
+        fillColor:'#3B82F6', fillOpacity:.08, interactive:false }).addTo(group);
+    }
+    L.marker(here, { zIndexOffset: 3000, keyboard:false, title:'Tu ubicación',
+      icon: L.divIcon({ className:'', iconSize:[20,20], iconAnchor:[10,10],
+        html:'<div class="mady-me"><div class="halo"></div><div class="dot"></div></div>' }) })
+      .addTo(group);
+    return group;
+  }
+
+  window.__madyTrack = { css: ${JSON.stringify(CSS)}, draw: draw, drawMe: drawMe };
 })();
 `;
 

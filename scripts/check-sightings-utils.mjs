@@ -19,7 +19,7 @@ for (const f of ['geo.js', 'sightings.js', 'track.js']) {
 }
 const { parseDbDate, timeAgo, sightingPlaceLabel, sightingNote } =
   await import(pathToFileURL(join(tmp, 'sightings.js')).href);
-const { nearestZone, formatDistance, distanceKm } =
+const { nearestZone, formatDistance, distanceKm, zoneLabel, youAreAtLabel, walkingDirectionsUrl } =
   await import(pathToFileURL(join(tmp, 'geo.js')).href);
 const { buildTrack, searchRadiusMeters } = await import(pathToFileURL(join(tmp, 'track.js')).href);
 
@@ -160,6 +160,29 @@ ok('rastreo sin avistamientos ni punto exacto: no hay nada que dibujar', () => {
 ok('modo normal no agrega zona de búsqueda', () => {
   assert.equal(buildTrack(pinExacto, avist, NOW).searchArea, undefined);
   assert.equal(buildTrack(pinExacto, [], NOW), null);
+});
+
+// ── Ubicación en vivo, "Cómo llegar" y nombre del lugar ─────────────────────
+ok('nombre del lugar sin geocoding: zona más cercana o fuera de la ciudad', () => {
+  assert.equal(zoneLabel(-53.7920, -67.7250), 'Cerca de Chacra II, Río Grande');
+  assert.equal(zoneLabel(-54.8019, -68.3030), 'Fuera de Río Grande'); // Ushuaia
+  assert.equal(zoneLabel(undefined, -67.7), null);
+});
+ok('"Estás a X": metros redondeados, km con coma, "Estás acá" muy cerca', () => {
+  const target = { lat: -53.80, lng: -67.70 };
+  assert.equal(youAreAtLabel({ lat: -53.80315, lng: -67.70, accuracy: 10 }, target), 'Estás a 350 m');
+  assert.equal(youAreAtLabel({ lat: -53.811, lng: -67.70, accuracy: 10 }, target), 'Estás a 1,2 km');
+  assert.equal(youAreAtLabel({ lat: -53.80005, lng: -67.70, accuracy: 10 }, target), 'Estás acá');
+  // dentro del margen de error del GPS (40 m) también es "acá"
+  assert.equal(youAreAtLabel({ lat: -53.8003, lng: -67.70, accuracy: 40 }, target), 'Estás acá');
+  assert.equal(youAreAtLabel(null, target), null);
+});
+ok('"Cómo llegar": Google Maps a pie, o Apple Maps en iPhone', () => {
+  const dest = { lat: -53.7925, lng: -67.699 };
+  assert.equal(walkingDirectionsUrl(dest),
+    'https://www.google.com/maps/dir/?api=1&destination=-53.792500,-67.699000&travelmode=walking');
+  assert.equal(walkingDirectionsUrl(dest, { apple: true }),
+    'https://maps.apple.com/?daddr=-53.792500,-67.699000&dirflg=w');
 });
 
 console.log(`\n${n} casos OK`);

@@ -181,10 +181,27 @@ function buildLeafletHTML({ pins, userLat, userLng, centerLat, centerLng, zoom }
     document.head.appendChild(st);
   })();
   var trackLayer = null, lastTrack = null, lastPadding = null, resizeTimer = null;
+  var meLayer = null, lastMe = null;
+  // Mi ubicación entra en el encuadre solo si estoy a ≤ 5 km del objetivo
+  function nearbyMe() {
+    if (!lastMe || !lastMe.target) return null;
+    var a = lastMe.me, b = lastMe.target, R = 6371, toR = Math.PI / 180;
+    var dLat = (b.lat - a.lat) * toR, dLng = (b.lng - a.lng) * toR;
+    var h = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(a.lat*toR)*Math.cos(b.lat*toR)*Math.sin(dLng/2)*Math.sin(dLng/2);
+    return R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1-h)) <= 5 ? [a.lat, a.lng] : null;
+  }
   window.__setTrack = function(track, padding) {
     lastTrack = track; lastPadding = padding;
     if (trackLayer) { trackLayer.remove(); trackLayer = null; }
-    if (track) trackLayer = window.__madyTrack.draw(L, map, track, { padding: padding });
+    if (track) trackLayer = window.__madyTrack.draw(L, map, track, { padding: padding, include: nearbyMe() });
+  };
+  // Mi ubicación en vivo (modo rastreo). Con la primera, se re-encuadra una vez.
+  window.__setMe = function(me, target) {
+    var first = !lastMe && !!me;
+    lastMe = me ? { me: me, target: target } : null;
+    if (meLayer) { meLayer.remove(); meLayer = null; }
+    if (me) meLayer = window.__madyTrack.drawMe(L, map, me, target);
+    if (first && lastTrack) window.__setTrack(lastTrack, lastPadding);
   };
   // Al entrar en modo rastreo el WebView crece: re-encuadrar el recorrido
   window.addEventListener('resize', function(){
@@ -237,6 +254,8 @@ export default function LeafletMap({
   track = null,          // recorrido de avistamientos (buildTrack) — etapa 3
   trackPadding = null,   // [arriba, derecha, abajo, izquierda] px libres de la tarjeta
   dark = false,          // modo rastreo: mapa oscuro
+  me = null,             // modo rastreo: mi ubicación en vivo { lat, lng, accuracy }
+  meTarget = null,       // hasta dónde va la línea desde mi ubicación
   style,
 }) {
   // En web, usar iframe directamente
@@ -272,11 +291,23 @@ export default function LeafletMap({
   }, []);
   useEffect(() => { sendTrack(); }, [track, trackPadding, dark, sendTrack]);
 
+  // Mi ubicación en vivo: se manda en cada actualización, sin recargar
+  const meRef = useRef({ me, meTarget });
+  meRef.current = { me, meTarget };
+  const sendMe = useCallback(() => {
+    const { me: m, meTarget: t } = meRef.current;
+    webviewRef.current?.injectJavaScript(
+      `window.__setMe && window.__setMe(${JSON.stringify(m)}, ${JSON.stringify(t)}); true;`
+    );
+  }, []);
+  useEffect(() => { sendMe(); }, [me, meTarget, sendMe]);
+
   const handleMessage = useCallback((e) => {
     try {
       const msg = JSON.parse(e.nativeEvent.data);
       if (msg.action === 'ready') {
         sendTrack();
+        sendMe();
       } else if (msg.action === 'contact' && onPinContact) {
         // Cerrar el globo: si no, tapa el recorrido que se dibuja al abrir la tarjeta
         webviewRef.current?.injectJavaScript('map.closePopup(); true;');
@@ -284,7 +315,7 @@ export default function LeafletMap({
         onPinContact(pin);
       }
     } catch {}
-  }, [onPinContact, sendTrack]);
+  }, [onPinContact, sendTrack, sendMe]);
 
   const WebView = require('react-native-webview').WebView;
 
