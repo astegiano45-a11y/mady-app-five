@@ -44,9 +44,12 @@ export async function resolverAlerta(id) {
   if (error) throw error;
 }
 
-export function suscribirAlertas(callback) {
+// channelName: cada pantalla que se suscribe tiene que usar uno propio. Con el
+// mismo nombre, supabase-js reutiliza el canal y al desmontar una pantalla
+// se cortaría la suscripción de la otra.
+export function suscribirAlertas(callback, channelName = 'alertas-live') {
   return supabase
-    .channel('alertas-live')
+    .channel(channelName)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'alertas' }, callback)
     .subscribe();
 }

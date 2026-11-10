@@ -12,15 +12,51 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import LeafletMap from '../components/LeafletMap';
 import { getCurrentLocation, reverseGeocode } from '../services/LocationService';
 import { COLORS, FONTS, RADIUS, SHADOW, SPACING } from '../theme';
-import { getSightingsForAlerta } from '../services/sightingsService';
+import { getSightingsForAlerta, suscribirAvistamientos } from '../services/sightingsService';
 import SightingCaptureModal from '../components/SightingCaptureModal';
 import { alertCoords } from '../services/proximityService';
 import { timeAgo, sightingPlaceLabel, sightingNote } from '../utils/sightings';
 import { buildTrack } from '../utils/track';
 import { useIsDesktop } from '../hooks/useIsDesktop';
+import { useFocusEffect } from '@react-navigation/native';
+import { supabase } from '../lib/supabase';
+import { suscribirAlertas } from '../services/alertasService';
 
 // Ancho de la tarjeta de la mascota en pantallas anchas
 const CARD_WIDE_WIDTH = 400;
+
+// Desplazamiento fijo (± ~300 m) a partir del id, para alertas SIN ubicación
+// exacta: que no se apilen todas en el centro de la zona. Antes era
+// Math.random(), y al recargar en tiempo real los pines saltaban de lugar.
+function stableJitter(id) {
+  let h = 0;
+  for (let i = 0; i < String(id).length; i++) h = (h * 31 + String(id).charCodeAt(i)) | 0;
+  const a = ((h & 0xffff) / 0xffff) - 0.5;
+  const b = (((h >>> 16) & 0xffff) / 0xffff) - 0.5;
+  return { dLat: a * 0.006, dLng: b * 0.006 };
+}
+
+// Fila de "alertas" → pin del mapa
+function alertToPin(a) {
+  // Ubicación real de la alerta (lat/lng guardados al reportar) si existe;
+  // si no, cae al centroide de la zona — mismo helper que usa proximityService,
+  // así ambos coinciden en qué se considera "ubicación" de una alerta.
+  const hasRealCoords = typeof a.lat === 'number' && typeof a.lng === 'number';
+  const base = alertCoords(a);
+  // Con ubicación real no se desplaza: sería imprecisión falsa sobre un dato preciso.
+  const j = hasRealCoords ? { dLat: 0, dLng: 0 } : stableJitter(a.id);
+  const diff = Math.floor((Date.now() - new Date(a.created_at)) / 60000);
+  const time = diff < 60 ? `${diff} min` : diff < 1440 ? `${Math.floor(diff/60)} h` : `${Math.floor(diff/1440)} días`;
+  return {
+    id: a.id, type: a.type || 'lost', name: a.name || '?',
+    emoji: a.type === 'found' ? '🐾' : a.type === 'adoption' ? '❤️' : '🐕',
+    lat: base.lat + j.dLat,
+    lng: base.lng + j.dLng,
+    exactLocation: hasRealCoords,
+    zone: a.zone, time, photo: a.photo_url,
+    user_id: a.user_id, // quién reportó — necesario para "Lo vi — Contactar"
+  };
+}
 
 const FALLBACK_PINS = [
   { id:'f1', type:'lost',     name:'Mady',   emoji:'🐕', lat:-53.7873, lng:-67.7100, zone:'Barrio Centro', time:'2 h'    },
@@ -197,43 +233,42 @@ export default function MapScreen({ navigation }) {
       } catch {}
       setLoadingLoc(false);
     })();
+  }, []);
 
-    // Cargar alertas reales de Supabase sin romper el mapa si falla
+  // Carga las alertas activas. Antes corría UNA vez al montar el mapa, así
+  // que una alerta recién reportada no aparecía hasta recargar la página
+  // (etapa 5). Ahora se llama al montar, cada vez que el mapa toma foco y
+  // cuando Supabase avisa un cambio en "alertas" (tiempo real).
+  const loadAlerts = useCallback(async () => {
     try {
-      const { supabase } = require('../lib/supabase');
-      supabase.from('alertas').select('*').eq('status', 'active').order('created_at', { ascending: false }).limit(50)
-        .then(({ data }) => {
-          if (!data || data.length === 0) return;
-          const realPins = data.map(a => {
-            // Ubicación real de la alerta (lat/lng guardados al reportar) si existe;
-            // si no, cae al centroide de la zona — mismo helper que usa proximityService,
-            // así ambos coinciden en qué se considera "ubicación" de una alerta.
-            const hasRealCoords = typeof a.lat === 'number' && typeof a.lng === 'number';
-            const base = alertCoords(a);
-            // El jitter (± ~300m) solo tiene sentido para el fallback aproximado de
-            // zona, para que no se apilen todos los pines en el mismo punto exacto.
-            // Con ubicación real no se jitterea: sería introducir imprecisión falsa
-            // sobre un dato que ya es preciso.
-            const coords = hasRealCoords
-              ? base
-              : { lat: base.lat + (Math.random() - 0.5) * 0.006, lng: base.lng + (Math.random() - 0.5) * 0.006 };
-            const diff = Math.floor((Date.now() - new Date(a.created_at)) / 60000);
-            const time = diff < 60 ? `${diff} min` : diff < 1440 ? `${Math.floor(diff/60)} h` : `${Math.floor(diff/1440)} días`;
-            return {
-              id: a.id, type: a.type || 'lost', name: a.name || '?',
-              emoji: a.type === 'found' ? '🐾' : a.type === 'adoption' ? '❤️' : '🐕',
-              lat: coords.lat,
-              lng: coords.lng,
-              exactLocation: hasRealCoords,
-              zone: a.zone, time, photo: a.photo_url,
-              user_id: a.user_id, // quién reportó — necesario para "Lo vi — Contactar"
-            };
-          });
-          setPins(realPins);
-        })
-        .catch(() => {});
+      const { data, error } = await supabase
+        .from('alertas').select('*').eq('status', 'active')
+        .order('created_at', { ascending: false }).limit(50);
+      // Si falla, el mapa se queda con lo que ya mostraba
+      if (error || !Array.isArray(data)) return;
+      const next = data.map(alertToPin);
+      // Mismo contenido → mismo array: no se redibujan los pines ni se cierra
+      // un globo abierto cuando la recarga no trae nada nuevo
+      setPins((prev) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next));
     } catch {}
   }, []);
+
+  useFocusEffect(useCallback(() => { loadAlerts(); }, [loadAlerts]));
+
+  // Tiempo real: altas, resoluciones y bajas de alertas. Se agrupan los avisos
+  // (300 ms) para no recargar varias veces si llegan juntos.
+  // MapScreen está montada dos veces en la navegación (pestaña "Mapa" y stack
+  // Mapa→Reportar): cada instancia usa su propio canal. Con el mismo nombre,
+  // supabase-js reutiliza el canal y al desmontar una se cortaría la otra.
+  const channelSuffix = useRef(Math.random().toString(36).slice(2, 8)).current;
+  useEffect(() => {
+    let timer = null;
+    const channel = suscribirAlertas(() => {
+      clearTimeout(timer);
+      timer = setTimeout(loadAlerts, 300);
+    }, `alertas-mapa-${channelSuffix}`);
+    return () => { clearTimeout(timer); supabase.removeChannel(channel); };
+  }, [loadAlerts, channelSuffix]);
 
   const filteredPins = filter === 'all' ? pins : pins.filter(p => p.type === filter);
   const FILTERS = [
@@ -255,10 +290,11 @@ export default function MapScreen({ navigation }) {
   );
   // Margen para que el recorrido no quede debajo de la tarjeta:
   // en ancho, la tarjeta ocupa la izquierda; en celular, la parte de abajo.
+  // Arriba 80 px: lugar para la etiqueta "Último avistamiento", que va sobre el marcador.
   const trackPadding = useMemo(() => (
     isDesktop
-      ? [40, 40, 40, CARD_WIDE_WIDTH + SPACING.lg * 2 + 24]
-      : [40, 40, Math.max(40, cardHeight - 24), 40]
+      ? [80, 40, 40, CARD_WIDE_WIDTH + SPACING.lg * 2 + 24]
+      : [80, 40, Math.max(40, cardHeight - 24), 40]
   ), [isDesktop, cardHeight]);
 
   // Carga los avistamientos de una alerta (más reciente primero — ya viene
@@ -285,6 +321,27 @@ export default function MapScreen({ navigation }) {
       () => setSelectedPin(null)
     );
   }, [slideAnim]);
+
+  // Tiempo real del recorrido: un avistamiento nuevo de la mascota abierta
+  // extiende la línea sin recargar.
+  const selectedLostId = selectedPin?.type === 'lost' ? selectedPin.id : null;
+  useEffect(() => {
+    if (!selectedLostId || FALLBACK_PINS.some(f => f.id === selectedLostId)) return undefined;
+    const channel = suscribirAvistamientos(
+      selectedLostId,
+      () => loadSightings(selectedLostId),
+      `avistamientos-${selectedLostId}-${channelSuffix}`,
+    );
+    return () => { supabase.removeChannel(channel); };
+  }, [selectedLostId, loadSightings, channelSuffix]);
+
+  // Si la alerta de la tarjeta abierta se resolvió o se borró, cerrar la tarjeta
+  useEffect(() => {
+    const isDemo = FALLBACK_PINS.some(f => f.id === selectedPin?.id);
+    if (selectedPin && !isDemo && !pins.some(p => p.id === selectedPin.id)) {
+      hideCard();
+    }
+  }, [pins]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Contacto real: el teléfono vive en profiles.phone, pero la única política
   // RLS de "profiles" es "auth.uid() = id" — nadie puede leer el perfil de
