@@ -3,7 +3,7 @@
 //  Semana 2: WebView + Leaflet, ubicación GPS, pins interactivos
 // ─────────────────────────────────────────────────────────────────────────────
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, Pressable, ScrollView, Image,
   ActivityIndicator, Animated, Platform, Linking, Modal,
@@ -16,6 +16,11 @@ import { getSightingsForAlerta } from '../services/sightingsService';
 import SightingCaptureModal from '../components/SightingCaptureModal';
 import { alertCoords } from '../services/proximityService';
 import { timeAgo, sightingPlaceLabel, sightingNote } from '../utils/sightings';
+import { buildTrack } from '../utils/track';
+import { useIsDesktop } from '../hooks/useIsDesktop';
+
+// Ancho de la tarjeta de la mascota en pantallas anchas
+const CARD_WIDE_WIDTH = 400;
 
 const FALLBACK_PINS = [
   { id:'f1', type:'lost',     name:'Mady',   emoji:'🐕', lat:-53.7873, lng:-67.7100, zone:'Barrio Centro', time:'2 h'    },
@@ -164,6 +169,8 @@ export default function MapScreen({ navigation }) {
   const [selectedPin,  setSelectedPin]  = useState(null);
   const [pins, setPins] = useState(FALLBACK_PINS);
   const [capturePin, setCapturePin] = useState(null); // mascota para la que se está cargando un avistamiento
+  const [cardHeight, setCardHeight] = useState(0);
+  const isDesktop = useIsDesktop();
   const [sightings, setSightings] = useState([]);
   const [loadingSightings, setLoadingSightings] = useState(false);
   // Reemplazan Alert.alert en todo este screen: react-native-web (lo que
@@ -239,6 +246,20 @@ export default function MapScreen({ navigation }) {
   const center = userLocation
     ? { lat: userLocation.lat, lng: userLocation.lng }
     : { lat: -53.7873, lng: -67.7100 };
+
+  // Recorrido de la mascota seleccionada: dónde se perdió → avistamientos en
+  // orden de hora, con el último destacado (etapa 3). Se limpia al cerrar.
+  const track = useMemo(
+    () => (selectedPin?.type === 'lost' ? buildTrack(selectedPin, sightings) : null),
+    [selectedPin, sightings],
+  );
+  // Margen para que el recorrido no quede debajo de la tarjeta:
+  // en ancho, la tarjeta ocupa la izquierda; en celular, la parte de abajo.
+  const trackPadding = useMemo(() => (
+    isDesktop
+      ? [40, 40, 40, CARD_WIDE_WIDTH + SPACING.lg * 2 + 24]
+      : [40, 40, Math.max(40, cardHeight - 24), 40]
+  ), [isDesktop, cardHeight]);
 
   // Carga los avistamientos de una alerta (más reciente primero — ya viene
   // ordenado así de getSightingsForAlerta) y los deja en el estado del card.
@@ -399,6 +420,8 @@ export default function MapScreen({ navigation }) {
         centerLng={center.lng}
         zoom={13}
         onPinContact={showCard}
+        track={track}
+        trackPadding={trackPadding}
         style={{ flex: 1 }}
       />
 
@@ -419,7 +442,10 @@ export default function MapScreen({ navigation }) {
 
       {/* ── Card de detalle slide-up ── */}
       {selectedPin && (
-        <Animated.View style={[scr.cardSlot, { transform: [{ translateY: slideAnim }] }]}>
+        <Animated.View
+          style={[scr.cardSlot, isDesktop && scr.cardSlotWide, { transform: [{ translateY: slideAnim }] }]}
+          onLayout={(e) => setCardHeight(Math.round(e.nativeEvent.layout.height))}
+        >
           <PinCard
             pin={selectedPin}
             onClose={hideCard}
@@ -507,6 +533,11 @@ const scr = StyleSheet.create({
   cardSlot: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
     paddingHorizontal: SPACING.lg, paddingBottom: SPACING.xl + 8,
+  },
+  // En pantallas anchas la tarjeta va a la izquierda, angosta, para que el
+  // recorrido de avistamientos se vea a la derecha (antes tapaba todo el mapa).
+  cardSlotWide: {
+    right: undefined, width: CARD_WIDE_WIDTH + SPACING.lg * 2,
   },
 
   fab: {

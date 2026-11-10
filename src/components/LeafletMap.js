@@ -3,8 +3,9 @@
 //  Funciona en web, iOS y Android
 // ─────────────────────────────────────────────────────────────────────────────
 
-import React, { useRef, useCallback } from 'react';
+import React, { useRef, useCallback, useEffect } from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
+import { TRACK_SCRIPT } from './mapTrackScript';
 
 const TYPE_COLORS = {
   lost:     '#DC2626',
@@ -171,6 +172,20 @@ function buildLeafletHTML({ pins, userLat, userLng, centerLat, centerLng, zoom }
       .bindPopup('<div class="popup-card"><b>📱 Tú estás aquí</b></div>');
   }
 
+  // Recorrido de avistamientos (etapa 3). React Native lo manda con
+  // injectJavaScript → window.__setTrack(track, padding).
+  ${TRACK_SCRIPT}
+  (function(){
+    var st = document.createElement('style');
+    st.textContent = window.__madyTrack.css;
+    document.head.appendChild(st);
+  })();
+  var trackLayer = null;
+  window.__setTrack = function(track, padding) {
+    if (trackLayer) { trackLayer.remove(); trackLayer = null; }
+    if (track) trackLayer = window.__madyTrack.draw(L, map, track, { padding: padding });
+  };
+
   // Notificar listo
   if (window.ReactNativeWebView) {
     window.ReactNativeWebView.postMessage(JSON.stringify({ action: 'ready' }));
@@ -210,9 +225,12 @@ export default function LeafletMap({
   centerLng = -99.1332,
   zoom = 13,
   onPinContact,
+  track = null,          // recorrido de avistamientos (buildTrack) — etapa 3
+  trackPadding = null,   // [arriba, derecha, abajo, izquierda] px libres de la tarjeta
   style,
 }) {
   // En web, usar iframe directamente
+  // (en la práctica Expo usa LeafletMap.web.js en web; esta rama queda de respaldo)
   if (Platform.OS === 'web') {
     return (
       <LeafletMapWeb
@@ -231,15 +249,31 @@ export default function LeafletMap({
   const webviewRef = useRef(null);
   const html = buildLeafletHTML({ pins, userLat: userLocation?.lat, userLng: userLocation?.lng, centerLat, centerLng, zoom });
 
+  // El recorrido se inyecta sin recargar el WebView. Si el WebView se recarga
+  // (cambian los pines), al avisar 'ready' se vuelve a mandar el actual.
+  const trackRef = useRef({ track, trackPadding });
+  trackRef.current = { track, trackPadding };
+  const sendTrack = useCallback(() => {
+    const { track: t, trackPadding: p } = trackRef.current;
+    webviewRef.current?.injectJavaScript(
+      `window.__setTrack && window.__setTrack(${JSON.stringify(t)}, ${JSON.stringify(p)}); true;`
+    );
+  }, []);
+  useEffect(() => { sendTrack(); }, [track, trackPadding, sendTrack]);
+
   const handleMessage = useCallback((e) => {
     try {
       const msg = JSON.parse(e.nativeEvent.data);
-      if (msg.action === 'contact' && onPinContact) {
+      if (msg.action === 'ready') {
+        sendTrack();
+      } else if (msg.action === 'contact' && onPinContact) {
+        // Cerrar el globo: si no, tapa el recorrido que se dibuja al abrir la tarjeta
+        webviewRef.current?.injectJavaScript('map.closePopup(); true;');
         const pin = JSON.parse(msg.pin);
         onPinContact(pin);
       }
     } catch {}
-  }, [onPinContact]);
+  }, [onPinContact, sendTrack]);
 
   const WebView = require('react-native-webview').WebView;
 
