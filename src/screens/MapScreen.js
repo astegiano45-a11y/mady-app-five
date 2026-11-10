@@ -10,13 +10,14 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import LeafletMap from '../components/LeafletMap';
-import { getCurrentLocation, reverseGeocode } from '../services/LocationService';
+import { getCurrentLocation, reverseGeocode, watchLocation } from '../services/LocationService';
 import { COLORS, FONTS, RADIUS, SHADOW, SPACING } from '../theme';
 import { getSightingsForAlerta, suscribirAvistamientos } from '../services/sightingsService';
 import SightingCaptureModal from '../components/SightingCaptureModal';
 import { alertCoords } from '../services/proximityService';
 import { timeAgo, sightingPlaceLabel, sightingNote } from '../utils/sightings';
 import { buildTrack } from '../utils/track';
+import { youAreAtLabel, walkingDirectionsUrl, zoneLabel } from '../utils/geo';
 import { useIsDesktop } from '../hooks/useIsDesktop';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
@@ -75,10 +76,19 @@ const TYPE_INFO = {
 // ── Modo rastreo: tarjeta chica abajo ─────────────────────────────────────────
 // En el celular la tarjeta completa tapaba casi todo el mapa. En rastreo queda
 // una barra compacta con lo esencial y el mapa (oscuro) ocupa el resto.
-function TrackingBar({ pin, track, sightings, onExit, onLoVi }) {
+function TrackingBar({ pin, track, sightings, onExit, onLoVi, me, meError, target, onDirections }) {
   const last = track?.points?.filter((p) => p.kind === 'sighting').pop() || null;
   const sa = track?.searchArea;
   const photo = last?.photo || pin.photo;
+  // "Estás a X m" hasta el último avistamiento (o donde se perdió), en vivo
+  const youAre = youAreAtLabel(me, target);
+  const where = last ? 'último avistamiento' : 'lugar donde se perdió';
+  const meText = youAre === 'Estás acá'
+    ? `Estás en el lugar del ${where}`
+    : youAre ? `${youAre} del ${where}`
+    : meError === 'permiso' ? 'Activá el permiso de ubicación para ver a qué distancia estás'
+    : meError === 'gps'     ? 'No pudimos obtener tu ubicación'
+    : 'Buscando tu ubicación…';
   return (
     <View style={trk.wrap} accessibilityLabel={`Rastreando a ${pin.name}`}>
       <View style={trk.row}>
@@ -106,10 +116,26 @@ function TrackingBar({ pin, track, sightings, onExit, onLoVi }) {
           <Text style={trk.closeX}>✕</Text>
         </Pressable>
       </View>
-      <Pressable style={trk.btn} onPress={() => onLoVi(pin)} accessibilityRole="button"
-        accessibilityLabel={`Reportar avistamiento de ${pin.name} con una foto`}>
-        <Text style={trk.btnText}>📷 Lo vi aquí</Text>
-      </Pressable>
+      {/* Distancia en vivo; aria-live para que el lector de pantalla la anuncie */}
+      <View style={trk.meRow} accessibilityLiveRegion="polite">
+        <View style={[trk.meDot, !youAre && trk.meDotOff]} />
+        <Text style={[trk.meText, youAre && trk.meTextOn]} numberOfLines={2}>{meText}</Text>
+      </View>
+      <View style={trk.btnRow}>
+        <Pressable style={[trk.btn, trk.btnHalf]} onPress={() => onLoVi(pin)} accessibilityRole="button"
+          accessibilityLabel={`Reportar avistamiento de ${pin.name} con una foto`}>
+          <Text style={trk.btnText}>📷 Lo vi aquí</Text>
+        </Pressable>
+        <Pressable
+          style={[trk.btn, trk.btnHalf, trk.btnRoute, !target && { opacity: 0.5 }]}
+          onPress={() => target && onDirections(target)}
+          disabled={!target}
+          accessibilityRole="link"
+          accessibilityLabel={`Cómo llegar a pie hasta el ${last ? 'último avistamiento' : 'lugar donde se perdió'} de ${pin.name}. Abre la app de mapas`}
+        >
+          <Text style={trk.btnText}>🧭 Cómo llegar</Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -131,7 +157,33 @@ const trk = StyleSheet.create({
   closeX:     { fontSize: 14, color: '#E5E7EB' },
   btn:        { backgroundColor: '#10B981', borderRadius: RADIUS.md, paddingVertical: SPACING.sm + 4, alignItems: 'center' },
   btnText:    { fontSize: FONTS.base, fontWeight: '700', color: '#FFF' },
+  btnRow:     { flexDirection: 'row', gap: SPACING.sm },
+  btnHalf:    { flex: 1 },
+  btnRoute:   { backgroundColor: '#2563EB' },
+  meRow:      { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 2 },
+  meDot:      { width: 10, height: 10, borderRadius: 5, backgroundColor: '#3B82F6', borderWidth: 2, borderColor: '#FFF' },
+  meDotOff:   { backgroundColor: '#6B7280' },
+  meText:     { flex: 1, fontSize: FONTS.sm, color: '#9CA3AF' },
+  meTextOn:   { color: '#BFDBFE', fontWeight: '700' },
 });
+
+// ¿iPhone/iPad? (también en la web: Safari de iPadOS se presenta como Mac)
+function isAppleDevice() {
+  if (Platform.OS === 'ios') return true;
+  if (Platform.OS !== 'web' || typeof navigator === 'undefined') return false;
+  return /iPad|iPhone|iPod/.test(navigator.userAgent)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
+// "Cómo llegar": ruta a pie en Apple Maps (iPhone) o Google Maps (resto)
+function openWalkingDirections(target) {
+  const url = walkingDirectionsUrl(target, { apple: isAppleDevice() });
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    window.open(url, '_blank', 'noopener,noreferrer');
+  } else {
+    Linking.openURL(url).catch(() => {});
+  }
+}
 
 // ── Card de detalle slide-up ──────────────────────────────────────────────────
 function PinCard({ pin, onClose, onContact, onLoVi, onTrack, onFound, isOwner, sightings = [], loadingSightings }) {
@@ -306,6 +358,24 @@ export default function MapScreen({ navigation }) {
   const [now, setNow] = useState(() => Date.now());          // reloj de la zona de búsqueda
   const [confirmFound, setConfirmFound] = useState(null);    // pin a marcar como encontrado
   const [resolving, setResolving] = useState(false);
+  const [me, setMe] = useState(null);            // mi ubicación en vivo (modo rastreo)
+  const [meError, setMeError] = useState(null);  // 'permiso' | 'gps' | null
+
+  // Modo rastreo: seguir mi ubicación en vivo mientras dura, y dejar de
+  // seguirla al salir (no gastar batería ni GPS fuera del rastreo).
+  useEffect(() => {
+    if (!tracking) { setMe(null); setMeError(null); return undefined; }
+    const stop = watchLocation(
+      (loc) => { setMe(loc); setMeError(null); },
+      (err) => setMeError(err),
+    );
+    return stop;
+  }, [tracking]);
+
+  // El encabezado acompaña mi ubicación mientras camino (zona, sin servicios externos)
+  useEffect(() => {
+    if (me) setLocationName(zoneLabel(me.lat, me.lng) || 'Río Grande · TDF');
+  }, [me?.lat, me?.lng]); // eslint-disable-line react-hooks/exhaustive-deps
   const [sightings, setSightings] = useState([]);
   const [loadingSightings, setLoadingSightings] = useState(false);
   // Reemplazan Alert.alert en todo este screen: react-native-web (lo que
@@ -406,6 +476,14 @@ export default function MapScreen({ navigation }) {
       ? [80, 40, 40, CARD_WIDE_WIDTH + SPACING.lg * 2 + 24]
       : [80, 40, Math.max(40, cardHeight - 24), 40]
   ), [isDesktop, cardHeight, tracking]);
+
+  // Hasta dónde va la línea desde mi ubicación y la ruta de "Cómo llegar":
+  // el último avistamiento; si no hay, el lugar donde se perdió.
+  const meTarget = useMemo(() => {
+    const pts = track?.points || [];
+    const p = pts.filter((x) => x.kind === 'sighting').pop() || pts.find((x) => x.kind === 'lost');
+    return p ? { lat: p.lat, lng: p.lng } : null;
+  }, [track]);
 
   // En rastreo solo se muestra la mascota rastreada (sin el resto de los pines)
   const mapPins = useMemo(
@@ -642,7 +720,10 @@ export default function MapScreen({ navigation }) {
       <LeafletMap
         pins={mapPins}
         dark={tracking}
-        userLocation={userLocation}
+        // En rastreo, mi ubicación es el punto azul en vivo (no el pin 📱 fijo)
+        userLocation={tracking ? null : userLocation}
+        me={tracking ? me : null}
+        meTarget={meTarget}
         centerLat={center.lat}
         centerLng={center.lng}
         zoom={13}
@@ -695,6 +776,10 @@ export default function MapScreen({ navigation }) {
               sightings={sightings}
               onExit={stopTracking}
               onLoVi={handleLoVi}
+              me={me}
+              meError={meError}
+              target={meTarget}
+              onDirections={openWalkingDirections}
             />
           ) : (
             <PinCard
